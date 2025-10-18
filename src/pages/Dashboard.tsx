@@ -19,23 +19,10 @@ import {
 } from 'lucide-react';
 
 export function Dashboard() {
-  const onlineTeammates = [
-    { id: 1, name: 'Tuấn Anh', game: 'League of Legends', rank: 'Gold II', university: 'HCMUT', avatar: 'TA', status: 'Đang tìm team', time: '15 phút', isPlaying: true },
-    { id: 2, name: 'Thùy Linh', game: 'Valorant', rank: 'Platinum I', university: 'FPT', avatar: 'TL', status: 'Sẵn sàng chơi', time: '2 phút', isPlaying: false },
-    { id: 3, name: 'Đức Minh', game: 'Dota 2', rank: 'Ancient III', university: 'UEH', avatar: 'DM', status: 'Đang tìm team', time: '8 phút', isPlaying: false },
-  ];
-
-  const todayEvents = [
-    { id: 1, title: 'Giải Valorant FPT Cup', time: '19:00', participants: 64, university: 'FPT University', type: 'tournament' },
-    { id: 2, title: 'Friendly Match - LoL', time: '20:30', participants: 10, university: 'HCMUT', type: 'friendly' },
-    { id: 3, title: 'Scrim Night - Dota 2', time: '21:00', participants: 20, university: 'UEH', type: 'scrim' },
-  ];
-
-  const dailyMissions = [
-    { id: 1, title: 'Chơi 3 trận Ranked', progress: 2, total: 3, xp: 100, completed: false },
-    { id: 2, title: 'Tham gia 1 voice channel', progress: 0, total: 1, xp: 50, completed: false },
-    { id: 3, title: 'Gửi 10 tin nhắn trong cộng đồng', progress: 7, total: 10, xp: 30, completed: false },
-  ];
+  // Simplified dashboard - no mock data, will be populated from API later
+  const onlineTeammates: any[] = [];
+  const todayEvents: any[] = [];
+  const dailyMissions: any[] = [];
 
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto">

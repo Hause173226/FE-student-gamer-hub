@@ -21,6 +21,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const checkAuth = async () => {
     const token = localStorage.getItem("token");
+    const isAuthenticated = localStorage.getItem("isAuthenticated");
+    const testUser = localStorage.getItem("user");
+    
+    // Check for test user first (for testing)
+    if (isAuthenticated === "true" && testUser) {
+      try {
+        const userData = JSON.parse(testUser);
+        setUser(userData);
+        setIsAuthenticated(true);
+        setLoading(false);
+        return;
+      } catch (error) {
+        console.error("Error parsing test user:", error);
+      }
+    }
+    
+    // Check for real token
     if (!token) {
       setIsAuthenticated(false);
       setUser(null);
@@ -64,6 +81,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       localStorage.removeItem("token");
       localStorage.removeItem("refreshToken");
+      localStorage.removeItem("user");
+      localStorage.removeItem("isAuthenticated");
       setIsAuthenticated(false);
       setUser(null);
     }

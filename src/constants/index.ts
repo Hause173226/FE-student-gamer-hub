@@ -22,7 +22,7 @@ import {
 export const MENU_ITEMS = [
   { id: 'dashboard', label: 'Trang chủ', icon: Home },
   { id: 'communities', label: 'Cộng đồng', icon: Users },
-  { id: 'rooms', label: 'Phòng chat', icon: MessageSquare },
+  { id: 'chat-groups', label: 'Phòng chat', icon: MessageSquare },
   { id: 'events', label: 'Sự kiện', icon: Calendar },
   { id: 'profile', label: 'Hồ sơ', icon: User },
 ];
@@ -30,7 +30,7 @@ export const MENU_ITEMS = [
 export const MOBILE_NAV_ITEMS = [
   { id: 'dashboard', label: 'Trang chủ', icon: Home },
   { id: 'communities', label: 'Cộng đồng', icon: Users },
-  { id: 'rooms', label: 'Chat', icon: MessageSquare },
+  { id: 'chat-groups', label: 'Chat', icon: MessageSquare },
   { id: 'events', label: 'Sự kiện', icon: Calendar },
   { id: 'profile', label: 'Hồ sơ', icon: User },
 ];

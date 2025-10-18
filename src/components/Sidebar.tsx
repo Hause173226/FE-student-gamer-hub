@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Trophy, Star, Settings, LogOut, X, AlertCircle } from "lucide-react";
 import clsx from "clsx";
 import { MENU_ITEMS } from "../constants";
@@ -12,9 +13,21 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentView, onViewChange, onToggle }: SidebarProps) {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleMenuClick = (id: string) => {
+    // Special handling for chat-groups
+    if (id === 'chat-groups') {
+      navigate('/chat-groups');
+    } else {
+      navigate(`/${id}`);
+    }
+    onViewChange(id);
+    onToggle();
+  };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -90,10 +103,7 @@ export function Sidebar({ currentView, onViewChange, onToggle }: SidebarProps) {
               return (
                 <li key={item.id}>
                   <button
-                    onClick={() => {
-                      onViewChange(item.id);
-                      onToggle();
-                    }}
+                    onClick={() => handleMenuClick(item.id)}
                     className={clsx(
                       "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
                       currentView === item.id
