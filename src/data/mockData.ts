@@ -291,58 +291,15 @@ export const mockChatRooms: MockChatRoom[] = [
 ];
 
 // Mock Messages Data
-export const mockMessages: MockMessage[] = [
-  {
-    id: 1,
-    roomId: 1,
-    userId: 1,
-    username: "Tuấn Anh",
-    message: "Chào mọi người! Ai đi rank không?",
-    timestamp: "2024-01-20T14:30:00Z",
-    avatar: "TA"
-  },
-  {
-    id: 2,
-    roomId: 1,
-    userId: 2,
-    username: "Thùy Linh",
-    message: "Mình vào nha! Rank gì vậy?",
-    timestamp: "2024-01-20T14:32:00Z",
-    avatar: "TL"
-  },
-  {
-    id: 3,
-    roomId: 1,
-    userId: 3,
-    username: "Đức Minh",
-    message: "Team cần 2 người nữa, ai join không?",
-    timestamp: "2024-01-20T14:35:00Z",
-    avatar: "DM"
-  },
-  {
-    id: 4,
-    roomId: 2,
-    userId: 4,
-    username: "Minh Tuấn",
-    message: "Team 5v5 cần 2 người, rank Gold trở lên",
-    timestamp: "2024-01-20T14:40:00Z",
-    avatar: "MT"
-  },
-  {
-    id: 5,
-    roomId: 4,
-    userId: 5,
-    username: "Hương Lan",
-    message: "Scrim tối nay 8h, ai tham gia không?",
-    timestamp: "2024-01-20T15:00:00Z",
-    avatar: "HL"
-  }
-];
+// Mock messages - Empty initially
+export const mockMessages: MockMessage[] = [];
 
 // Helper functions
-export const getCommunities = () => mockCommunities;
-export const getGroupsByCommunityId = (communityId: number) => 
+export const getCommunities = (): MockCommunity[] => mockCommunities;
+export const getGroupsByCommunityId = (communityId: number): MockGroup[] => 
   mockGroups.filter(group => group.communityId === communityId);
+export const getJoinedGroups = (): MockGroup[] => 
+  mockGroups.filter(group => group.isJoined);
 export const getChatRoomsByGroupId = (groupId: number) => 
   mockChatRooms.filter(room => room.groupId === groupId);
 export const getMessagesByRoomId = (roomId: number) => 

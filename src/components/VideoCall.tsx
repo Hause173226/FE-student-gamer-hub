@@ -66,16 +66,6 @@ export function VideoCall({ roomId, userId, onEndCall }: VideoCallProps) {
       }
       delete (window as any).cameraPopup;
     }
-    
-    // Cleanup popup screen
-    if ((window as any).screenPopup) {
-      const { video, stream } = (window as any).screenPopup;
-      stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-      if (document.body.contains(video)) {
-        document.body.removeChild(video);
-      }
-      delete (window as any).screenPopup;
-    }
   };
 
   const toggleCamera = async () => {
@@ -254,94 +244,82 @@ export function VideoCall({ roomId, userId, onEndCall }: VideoCallProps) {
         
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: {
-            mediaSource: 'screen',
             width: { ideal: 1920 },
             height: { ideal: 1080 }
           },
           audio: true
         });
         
-        console.log('📺 Screen stream received:', stream);
-        console.log('📺 Screen tracks:', stream.getTracks());
-        console.log('📺 Stream active:', stream.active);
-        console.log('📺 Track enabled:', stream.getTracks()[0]?.enabled);
-        console.log('📺 Track readyState:', stream.getTracks()[0]?.readyState);
-        
-        // Create popup screen share element
-        const popupScreen = document.createElement('video');
-        popupScreen.srcObject = stream;
-        popupScreen.autoplay = true;
-        popupScreen.muted = true;
-        popupScreen.style.width = '80vw';
-        popupScreen.style.height = '60vh';
-        popupScreen.style.border = '2px solid blue';
-        popupScreen.style.position = 'fixed';
-        popupScreen.style.top = '50%';
-        popupScreen.style.left = '50%';
-        popupScreen.style.transform = 'translate(-50%, -50%)';
-        popupScreen.style.zIndex = '9999';
-        popupScreen.style.backgroundColor = 'black';
-        popupScreen.style.borderRadius = '8px';
-        popupScreen.style.maxWidth = '1200px';
-        popupScreen.style.maxHeight = '800px';
-        
-        // Add label
-        const label = document.createElement('div');
-        label.textContent = 'Screen Share - Click to close';
-        label.style.position = 'absolute';
-        label.style.top = '10px';
-        label.style.left = '10px';
-        label.style.background = 'rgba(0, 0, 0, 0.8)';
-        label.style.color = 'white';
-        label.style.padding = '8px 12px';
-        label.style.borderRadius = '4px';
-        label.style.fontSize = '14px';
-        label.style.fontWeight = 'bold';
-        label.style.cursor = 'pointer';
-        
-        popupScreen.appendChild(label);
-        document.body.appendChild(popupScreen);
-        
-        // Store reference for cleanup
-        (window as any).screenPopup = { video: popupScreen, stream: stream };
-        
-        popupScreen.onloadedmetadata = () => {
-          console.log('📺 Popup screen loaded, dimensions:', popupScreen.videoWidth, 'x', popupScreen.videoHeight);
-        };
-        
-        popupScreen.onplay = () => {
-          console.log('📺 Popup screen playing');
-        };
-        
-        popupScreen.onerror = (e) => {
-          console.error('📺 Popup screen error:', e);
-        };
-        
-        // Click to close
-        const closeScreen = () => {
-          stream.getTracks().forEach(track => track.stop());
-          document.body.removeChild(popupScreen);
-          delete (window as any).screenPopup;
-          setScreenShare(false);
-          toast.success('Dừng chia sẻ màn hình');
-        };
-        
-        label.onclick = closeScreen;
-        popupScreen.onclick = closeScreen;
+         console.log('📺 Screen stream received:', stream);
+         console.log('📺 Screen tracks:', stream.getTracks());
+         console.log('📺 Stream active:', stream.active);
+         console.log('📺 Track enabled:', stream.getTracks()[0]?.enabled);
+         console.log('📺 Track readyState:', stream.getTracks()[0]?.readyState);
+         
+         if (screenRef.current) {
+           console.log('📺 Setting screen srcObject...');
+           screenRef.current.srcObject = stream;
+           
+           // Add event listeners for debugging
+           screenRef.current.onloadstart = () => {
+             console.log('📺 Screen load started');
+           };
+           
+           screenRef.current.onloadeddata = () => {
+             console.log('📺 Screen data loaded');
+           };
+           
+           screenRef.current.onloadedmetadata = () => {
+             console.log('📺 Screen metadata loaded');
+             console.log('📺 Screen dimensions:', screenRef.current?.videoWidth, 'x', screenRef.current?.videoHeight);
+             console.log('📺 Screen readyState:', screenRef.current?.readyState);
+           };
+           
+           screenRef.current.oncanplay = () => {
+             console.log('📺 Screen can play');
+           };
+           
+           screenRef.current.onplay = () => {
+             console.log('📺 Screen started playing');
+           };
+           
+           screenRef.current.onerror = (e) => {
+             console.error('📺 Screen error:', e);
+           };
+           
+           // Force play with multiple attempts
+           const playScreen = async () => {
+             try {
+               console.log('📺 Attempting to play screen...');
+               await screenRef.current?.play();
+               console.log('📺 Screen play successful');
+             } catch (playError) {
+               console.error('📺 Screen play failed:', playError);
+               // Retry after a short delay
+               setTimeout(() => {
+                 screenRef.current?.play().catch(console.error);
+               }, 500);
+             }
+           };
+           
+           // Try to play immediately and after delays
+           playScreen();
+           setTimeout(playScreen, 100);
+           setTimeout(playScreen, 500);
+           setTimeout(playScreen, 1000);
+        } else {
+          console.error('📺 Screen ref is null!');
+        }
         
         setScreenShare(true);
         toast.success('Bắt đầu chia sẻ màn hình thành công');
       } else {
         console.log('📺 Stopping screen share...');
-        
-        // Cleanup popup
-        if ((window as any).screenPopup) {
-          const { video, stream } = (window as any).screenPopup;
-          stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-          document.body.removeChild(video);
-          delete (window as any).screenPopup;
+        if (screenRef.current?.srcObject) {
+          const stream = screenRef.current.srcObject as MediaStream;
+          stream.getTracks().forEach(track => track.stop());
+          screenRef.current.srcObject = null;
         }
-        
         setScreenShare(false);
         toast.success('Dừng chia sẻ màn hình');
       }
@@ -389,8 +367,8 @@ export function VideoCall({ roomId, userId, onEndCall }: VideoCallProps) {
 
       {/* Main Content */}
       <div className="flex-1 p-4">
-        {/* Debug Button */}
-        <div className="mb-4 flex justify-center">
+        {/* Debug Buttons */}
+        <div className="mb-4 flex justify-center gap-2">
           <button
             onClick={async () => {
               try {
@@ -458,24 +436,172 @@ export function VideoCall({ roomId, userId, onEndCall }: VideoCallProps) {
           >
             🧪 Test Screen Popup
           </button>
+          
+          <button
+            onClick={async () => {
+              try {
+                console.log('🧪 Testing full screen popup...');
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                console.log('✅ Screen stream:', stream);
+                
+                // Create full screen popup
+                const popupVideo = document.createElement('video');
+                popupVideo.srcObject = stream;
+                popupVideo.autoplay = true;
+                popupVideo.muted = true;
+                popupVideo.style.width = '80vw';
+                popupVideo.style.height = '80vh';
+                popupVideo.style.border = '2px solid red';
+                popupVideo.style.position = 'fixed';
+                popupVideo.style.top = '50%';
+                popupVideo.style.left = '50%';
+                popupVideo.style.transform = 'translate(-50%, -50%)';
+                popupVideo.style.zIndex = '9999';
+                popupVideo.style.backgroundColor = 'black';
+                popupVideo.style.borderRadius = '8px';
+                
+                // Add label
+                const label = document.createElement('div');
+                label.textContent = 'Full Screen Test - Click to close';
+                label.style.position = 'absolute';
+                label.style.top = '10px';
+                label.style.left = '10px';
+                label.style.background = 'rgba(0, 0, 0, 0.8)';
+                label.style.color = 'white';
+                label.style.padding = '8px 12px';
+                label.style.borderRadius = '4px';
+                label.style.fontSize = '14px';
+                label.style.fontWeight = 'bold';
+                label.style.cursor = 'pointer';
+                
+                popupVideo.appendChild(label);
+                document.body.appendChild(popupVideo);
+                
+                popupVideo.onloadedmetadata = () => {
+                  console.log('📺 Full screen popup loaded, dimensions:', popupVideo.videoWidth, 'x', popupVideo.videoHeight);
+                };
+                
+                popupVideo.onplay = () => {
+                  console.log('📺 Full screen popup playing');
+                };
+                
+                popupVideo.onerror = (e) => {
+                  console.error('📺 Full screen popup error:', e);
+                };
+                
+                // Click to close
+                const closePopup = () => {
+                  stream.getTracks().forEach(track => track.stop());
+                  document.body.removeChild(popupVideo);
+                  console.log('🛑 Full screen popup removed');
+                };
+                
+                label.onclick = closePopup;
+                popupVideo.onclick = closePopup;
+                
+                toast.success('Full screen test popup! Click to close');
+              } catch (error) {
+                console.error('❌ Full screen test failed:', error);
+                toast.error('Full screen test failed: ' + error);
+              }
+            }}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
+          >
+            🧪 Test Full Screen
+          </button>
         </div>
 
-        {/* Voice Only View - Always show this, camera and screen are popup */}
-        <div className="h-full flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-32 h-32 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Volume2 className="w-16 h-16 text-gray-400" />
+         {screenShare ? (
+           /* Screen Share View - Full Screen */
+           <div className="h-full w-full">
+             <div className="relative bg-black rounded-lg overflow-hidden h-full w-full">
+               <video
+                 ref={screenRef}
+                 autoPlay
+                 playsInline
+                 muted
+                 className="w-full h-full object-cover"
+                 style={{ 
+                   backgroundColor: 'black',
+                   width: '100%',
+                   height: '100%'
+                 }}
+                 onLoadStart={() => console.log('📺 Screen load started')}
+                 onLoadedData={() => console.log('📺 Screen data loaded')}
+                 onLoadedMetadata={() => console.log('📺 Screen metadata loaded')}
+                 onCanPlay={() => console.log('📺 Screen can play')}
+                 onPlay={() => console.log('📺 Screen playing')}
+                 onError={(e) => console.error('📺 Screen error:', e)}
+               />
+               
+               {/* Fallback if video doesn't load */}
+               {!screenRef.current?.srcObject && (
+                 <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                   <div className="text-center text-white">
+                     <div className="w-16 h-16 bg-gray-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                       <Monitor className="w-8 h-8" />
+                     </div>
+                     <p className="text-lg font-medium">Đang tải màn hình...</p>
+                     <p className="text-sm text-gray-400 mt-2">Vui lòng chờ một chút</p>
+                     <button
+                       onClick={() => {
+                         console.log('🔄 Refreshing screen share...');
+                         toggleScreenShare();
+                       }}
+                       className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
+                     >
+                       🔄 Refresh
+                     </button>
+                   </div>
+                 </div>
+               )}
+               
+               <div className="absolute top-2 left-2 bg-blue-600/90 rounded px-3 py-1">
+                 <span className="text-white text-sm font-medium">Màn hình được chia sẻ</span>
+               </div>
+               <div className="absolute top-2 right-2 flex gap-2">
+                 <button
+                   onClick={() => {
+                     if (screenRef.current) {
+                       if (screenRef.current.requestFullscreen) {
+                         screenRef.current.requestFullscreen();
+                       } else if ((screenRef.current as any).webkitRequestFullscreen) {
+                         (screenRef.current as any).webkitRequestFullscreen();
+                       } else if ((screenRef.current as any).mozRequestFullScreen) {
+                         (screenRef.current as any).mozRequestFullScreen();
+                       } else if ((screenRef.current as any).msRequestFullscreen) {
+                         (screenRef.current as any).msRequestFullscreen();
+                       }
+                     }
+                   }}
+                   className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                 >
+                   📺 Full Screen
+                 </button>
+                 <button
+                   onClick={toggleScreenShare}
+                   className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                 >
+                   Dừng Share
+                 </button>
+               </div>
+             </div>
+           </div>
+         ) : (
+          /* Voice Only View - Always show this, camera is popup */
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-32 h-32 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Volume2 className="w-16 h-16 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">Voice Channel</h3>
+              <p className="text-gray-400 mb-4">Bạn đang trong voice channel</p>
+              {cameraOn && (
+                <p className="text-green-400 text-sm">Camera đang bật (popup)</p>
+              )}
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Voice Channel</h3>
-            <p className="text-gray-400 mb-4">Bạn đang trong voice channel</p>
-            {cameraOn && (
-              <p className="text-green-400 text-sm">Camera đang bật (popup)</p>
-            )}
-            {screenShare && (
-              <p className="text-blue-400 text-sm">Screen share đang bật (popup)</p>
-            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Controls */}
