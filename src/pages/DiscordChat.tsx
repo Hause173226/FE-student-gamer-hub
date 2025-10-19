@@ -25,6 +25,9 @@ export function DiscordChat() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  // Fallback user object to prevent errors
+  const safeUser = user || { id: '1', name: 'Guest', avatar: '👤' };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const [group, setGroup] = useState<any>(null);
@@ -47,10 +50,10 @@ export function DiscordChat() {
 
   // WebSocket setup for real-time sync
   useEffect(() => {
-    if (!user || !selectedChannel) return;
+    if (!safeUser || !selectedChannel) return;
 
     // Join room
-    fakeWebSocketService.joinRoom(selectedChannel.id, Number(user.id));
+    fakeWebSocketService.joinRoom(selectedChannel.id, Number(safeUser.id));
 
     // Subscribe to messages
     const handleMessage = (wsMessage: any) => {
@@ -78,9 +81,9 @@ export function DiscordChat() {
     // Cleanup on unmount or channel change
     return () => {
       fakeWebSocketService.unsubscribe('message', handleMessage);
-      fakeWebSocketService.leaveRoom(selectedChannel.id, Number(user.id));
+      fakeWebSocketService.leaveRoom(selectedChannel.id, Number(safeUser.id));
     };
-  }, [user, selectedChannel]);
+  }, [safeUser, selectedChannel]);
 
   // Load messages when selectedChannel changes
   useEffect(() => {
@@ -176,17 +179,17 @@ export function DiscordChat() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !user || !selectedChannel) return;
+    if (!message.trim() || !safeUser || !selectedChannel) return;
 
     // Create new message with better ID
     const newMessage: ChatMessage = {
-      id: `msg_${selectedChannel.id}_${Date.now()}_${user.id}`,
+      id: `msg_${selectedChannel.id}_${Date.now()}_${safeUser.id}`,
       roomId: selectedChannel.id,
-      userId: Number(user.id),
-      username: user.fullName || user.userName || 'User',
+      userId: Number(safeUser.id),
+      username: safeUser.fullName || safeUser.userName || safeUser.name || 'User',
       message: message.trim(),
       timestamp: new Date().toISOString(),
-      avatar: (user.fullName || user.userName || 'U').substring(0, 2).toUpperCase()
+      avatar: (safeUser.fullName || safeUser.userName || safeUser.name || 'U').substring(0, 2).toUpperCase()
     };
     
     // Send via WebSocket (this will sync to all browsers)
@@ -428,7 +431,7 @@ export function DiscordChat() {
                 </div>
               ) : (
                 messages.map((msg, index) => {
-                  const isMyMessage = user && msg.userId === Number(user.id);
+                  const isMyMessage = safeUser && msg.userId === Number(safeUser.id);
                   
                   return (
                     <div key={index} className={`group hover:bg-gray-800/50 px-4 py-2 rounded-lg transition-colors ${
@@ -552,8 +555,8 @@ export function DiscordChat() {
       {/* Video Call Component */}
       {isVideoCallActive && (
         <VideoCall
-          roomId={selectedChannel?.id.toString() || '1'}
-          userId={user?.id.toString() || '1'}
+          roomId={selectedChannel?.id?.toString() || '1'}
+          userId={safeUser.id?.toString() || '1'}
           onEndCall={endVideoCall}
         />
       )}

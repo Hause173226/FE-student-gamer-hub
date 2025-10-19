@@ -1,38 +1,46 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Users, Plus, Search, Filter, Crown, Shield, Loader2, Gamepad2, BookOpen, Music, Code, Trophy } from 'lucide-react';
-import { getCommunities, getGroupsByCommunityId, joinGroup, leaveGroup, MockCommunity, MockGroup } from '../data/mockData';
+import { Community } from '../types/community';
+import { Club } from '../types/club';
+import CommunityService from '../services/communityService';
+import ClubService from '../services/clubService';
 import toast from 'react-hot-toast';
 
 export function CommunityDetail() {
   const { communityId } = useParams<{ communityId: string }>();
   const navigate = useNavigate();
   
-  const [community, setCommunity] = useState<MockCommunity | null>(null);
-  const [groups, setGroups] = useState<MockGroup[]>([]);
+  const [community, setCommunity] = useState<Community | null>(null);
+  const [clubs, setClubs] = useState<Club[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [showCreateClubModal, setShowCreateClubModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    description: '',
+    isPublic: true,
+  });
 
   useEffect(() => {
-    loadCommunityAndGroups();
+    loadCommunityAndClubs();
   }, [communityId]);
 
-  const loadCommunityAndGroups = async () => {
+  const loadCommunityAndClubs = async () => {
     if (!communityId) return;
     
     setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Load community data
+      const communityData = await CommunityService.getCommunityById(Number(communityId));
+      setCommunity(communityData);
       
-      const communityData = getCommunities().find(c => c.id === Number(communityId));
-      const groupsData = getGroupsByCommunityId(Number(communityId));
+      // Load clubs data for this specific community
+      const clubsData = await ClubService.getClubsByCommunityId(Number(communityId));
+      setClubs(clubsData);
       
-      setCommunity(communityData || null);
-      setGroups(groupsData);
       console.log('✅ Loaded community:', communityData);
-      console.log('✅ Loaded groups:', groupsData);
+      console.log('✅ Loaded clubs:', clubsData);
     } catch (error) {
       console.error('❌ Error loading data:', error);
       toast.error('Không thể tải dữ liệu cộng đồng');
@@ -41,39 +49,59 @@ export function CommunityDetail() {
     }
   };
 
-  const handleJoinGroup = (groupId: number) => {
-    joinGroup(groupId);
-    setGroups(prev => prev.map(group => 
-      group.id === groupId 
-        ? { ...group, isJoined: true, membersCount: group.membersCount + 1 }
-        : group
-    ));
-    toast.success('Đã tham gia nhóm!');
+  const handleJoinClub = async (clubId: number) => {
+    try {
+      await ClubService.joinClub(clubId, 1); // Using userId = 1 for now
+      setClubs(prev => prev.map(club => 
+        club.id === clubId 
+          ? { ...club, isJoined: true, membersCount: club.membersCount + 1 }
+          : club
+      ));
+      toast.success('Đã tham gia club!');
+    } catch (error) {
+      console.error('❌ Error joining club:', error);
+      toast.error('Không thể tham gia club');
+    }
   };
 
-  const handleLeaveGroup = (groupId: number) => {
-    leaveGroup(groupId);
-    setGroups(prev => prev.map(group => 
-      group.id === groupId 
-        ? { ...group, isJoined: false, membersCount: group.membersCount - 1 }
-        : group
-    ));
-    toast.success('Đã rời khỏi nhóm!');
+  const handleCreateClub = async () => {
+    if (!createForm.name.trim() || !createForm.description.trim()) {
+      toast.error('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+
+    if (!communityId) {
+      toast.error('Không tìm thấy community ID');
+      return;
+    }
+
+    try {
+      const newClub = await ClubService.createClub(
+        Number(communityId), 
+        1, // creatorId = 1 for now
+        {
+          name: createForm.name,
+          description: createForm.description,
+          isPublic: createForm.isPublic,
+          membersCount: 0
+        }
+      );
+
+      setClubs(prev => [newClub, ...prev]);
+      setCreateForm({ name: '', description: '', isPublic: true });
+      setShowCreateClubModal(false);
+      toast.success('Tạo club thành công!');
+    } catch (error) {
+      console.error('❌ Error creating club:', error);
+      toast.error('Không thể tạo club mới');
+    }
   };
 
-  const getGroupColor = (index: number) => {
-    const colors = [
-      'from-blue-500 to-cyan-600',
-      'from-purple-500 to-pink-600',
-      'from-emerald-500 to-teal-600',
-      'from-orange-500 to-red-600',
-      'from-indigo-500 to-blue-600',
-      'from-rose-500 to-pink-600',
-    ];
-    return colors[index % colors.length];
+  const getClubColor = (club: Club) => {
+    return club.color || 'from-blue-500 to-cyan-600';
   };
 
-  const getCommunityIcon = (category: string) => {
+  const getCommunityIcon = (category?: string) => {
     switch (category) {
       case 'Gaming': return <Gamepad2 className="w-5 h-5" />;
       case 'Education': return <BookOpen className="w-5 h-5" />;
@@ -84,10 +112,10 @@ export function CommunityDetail() {
     }
   };
 
-  // Filter groups based on search
-  const filteredGroups = groups.filter(group => {
-    const matchesSearch = group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         group.description.toLowerCase().includes(searchQuery.toLowerCase());
+  // Filter clubs based on search
+  const filteredClubs = clubs.filter(club => {
+    const matchesSearch = club.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         club.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
 
@@ -143,10 +171,10 @@ export function CommunityDetail() {
                   </h1>
                   <p className="text-gray-400 mb-3">{community.description}</p>
                   <div className="flex items-center space-x-4 text-sm">
-                    <div className="flex items-center space-x-2 text-gray-400">
-                      {getCommunityIcon(community.category)}
-                      <span>{community.category}</span>
-                    </div>
+                  <div className="flex items-center space-x-2 text-gray-400">
+                    {getCommunityIcon(community.category)}
+                    <span>{community.category || 'General'}</span>
+                  </div>
                     <div className="flex items-center space-x-2 text-gray-400">
                       <Users className="w-4 h-4" />
                       <span>{community.membersCount.toLocaleString()} thành viên</span>
@@ -189,40 +217,40 @@ export function CommunityDetail() {
               <span>Bộ lọc</span>
             </button>
             <button
-              onClick={() => setShowCreateGroupModal(true)}
+              onClick={() => setShowCreateClubModal(true)}
               className="flex items-center space-x-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
             >
               <Plus className="w-5 h-5" />
-              <span>Tạo nhóm</span>
+              <span>Tạo club</span>
             </button>
           </div>
         </div>
 
-        {/* Groups */}
+        {/* Clubs */}
         <div className="mb-4">
           <h2 className="text-xl font-bold text-white mb-4">
-            Các nhóm trong cộng đồng ({filteredGroups.length})
+            Các club trong cộng đồng ({filteredClubs.length})
           </h2>
         </div>
 
-        {filteredGroups.length === 0 ? (
+        {filteredClubs.length === 0 ? (
           <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
             <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400 text-lg">Chưa có nhóm nào trong cộng đồng này</p>
-            <p className="text-gray-500 text-sm mt-2">Hãy là người đầu tiên tạo nhóm!</p>
+            <p className="text-gray-400 text-lg">Chưa có club nào trong cộng đồng này</p>
+            <p className="text-gray-500 text-sm mt-2">Hãy là người đầu tiên tạo club!</p>
           </div>
         ) : (
           <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredGroups.map((group, index) => (
+            {filteredClubs.map((club, index) => (
               <div
-                key={group.id}
+                key={club.id}
                 className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-indigo-500 transition-all"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className={`w-16 h-16 bg-gradient-to-r ${getGroupColor(index)} rounded-xl flex items-center justify-center`}>
-                    <span className="text-2xl">{group.avatar}</span>
+                  <div className={`w-16 h-16 bg-gradient-to-r ${getClubColor(club)} rounded-xl flex items-center justify-center`}>
+                    <span className="text-2xl">{club.avatar}</span>
                   </div>
-                  {group.isJoined ? (
+                  {club.isJoined ? (
                     <div className="flex items-center space-x-2 text-emerald-400">
                       <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
                       <span className="text-sm">Đã tham gia</span>
@@ -236,35 +264,36 @@ export function CommunityDetail() {
                 </div>
 
                 <h3 className="text-lg font-bold text-white mb-2">
-                  {group.name}
+                  {club.name}
                 </h3>
                 
                 <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                  {group.description}
+                  {club.description}
                 </p>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-700">
                   <div className="flex items-center space-x-2 text-gray-400 text-sm">
                     <Users className="w-4 h-4" />
-                    <span>{group.membersCount} thành viên</span>
+                    <span>{club.membersCount} thành viên</span>
                   </div>
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => group.isJoined ? handleLeaveGroup(group.id) : handleJoinGroup(group.id)}
+                    onClick={() => club.isJoined ? null : handleJoinClub(club.id)}
                     className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      group.isJoined
-                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                      club.isJoined
+                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                         : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                     }`}
+                    disabled={club.isJoined}
                   >
-                    {group.isJoined ? 'Rời nhóm' : 'Tham gia'}
+                    {club.isJoined ? 'Đã tham gia' : 'Tham gia'}
                   </button>
-                  {group.isJoined && (
+                  {club.isJoined && (
                     <button
-                      onClick={() => navigate(`/chat/${group.id}`)}
+                      onClick={() => navigate(`/rooms`)}
                       className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
                     >
-                      Vào Chat
+                      Vào Rooms
                     </button>
                   )}
                 </div>
@@ -274,14 +303,14 @@ export function CommunityDetail() {
           </div>
         )}
 
-        {/* Create Group Modal */}
-        {showCreateGroupModal && (
+        {/* Create Club Modal */}
+        {showCreateClubModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 border border-gray-700">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white">Tạo nhóm mới</h3>
+                <h3 className="text-lg font-bold text-white">Tạo club mới</h3>
                 <button
-                  onClick={() => setShowCreateGroupModal(false)}
+                  onClick={() => setShowCreateClubModal(false)}
                   className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
                 >
                   <span className="text-gray-400">×</span>
@@ -291,10 +320,12 @@ export function CommunityDetail() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    Tên nhóm
+                    Tên club
                   </label>
                   <input
                     type="text"
+                    value={createForm.name}
+                    onChange={(e) => setCreateForm({...createForm, name: e.target.value})}
                     placeholder="VD: Valorant Team 3"
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
                   />
@@ -306,27 +337,38 @@ export function CommunityDetail() {
                   </label>
                   <textarea
                     rows={3}
-                    placeholder="Mô tả về nhóm..."
+                    value={createForm.description}
+                    onChange={(e) => setCreateForm({...createForm, description: e.target.value})}
+                    placeholder="Mô tả về club..."
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
                   />
+                </div>
+
+                <div>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={createForm.isPublic}
+                      onChange={(e) => setCreateForm({...createForm, isPublic: e.target.checked})}
+                      className="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-white">Club công khai</span>
+                  </label>
                 </div>
               </div>
 
               <div className="flex space-x-3 mt-6">
                 <button
-                  onClick={() => setShowCreateGroupModal(false)}
+                  onClick={() => setShowCreateClubModal(false)}
                   className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
                 >
                   Hủy
                 </button>
                 <button
-                  onClick={() => {
-                    toast.success('Nhóm đã được tạo!');
-                    setShowCreateGroupModal(false);
-                  }}
+                  onClick={handleCreateClub}
                   className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
                 >
-                  Tạo nhóm
+                  Tạo club
                 </button>
               </div>
             </div>

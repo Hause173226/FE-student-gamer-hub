@@ -47,12 +47,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     try {
       const userData = await userService.getProfile();
+      console.log('✅ User profile loaded:', userData);
       setUser(userData);
       setIsAuthenticated(true);
     } catch (error) {
-      console.error("Auth check failed:", error);
+      console.error("❌ Auth check failed:", error);
       localStorage.removeItem("token");
       localStorage.removeItem("refreshToken");
+      localStorage.removeItem("isAuthenticated");
       setIsAuthenticated(false);
       setUser(null);
     } finally {

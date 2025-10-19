@@ -15,7 +15,8 @@ import {
   Code,
   Trophy,
 } from "lucide-react";
-import { getCommunities, MockCommunity } from "../data/mockData";
+import { Community } from "../types/community";
+import CommunityService from "../services/communityService";
 import toast from "react-hot-toast";
 
 export function Communities() {
@@ -28,13 +29,19 @@ export function Communities() {
     memberCount: "",
     privacy: "",
   });
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    description: "",
+    school: "",
+    category: "",
+  });
 
-  // Mock Data
-  const [communities, setCommunities] = useState<MockCommunity[]>([]);
+  // API Data
+  const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Load communities from mock data
+  // Load communities from API
   useEffect(() => {
     loadCommunities();
   }, []);
@@ -42,9 +49,7 @@ export function Communities() {
   const loadCommunities = async () => {
     setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const data = getCommunities();
+      const data = await CommunityService.getAllCommunities();
       setCommunities(data);
       console.log('✅ Loaded communities:', data);
       toast.success(`Đã tải ${data.length} cộng đồng`);
@@ -56,15 +61,43 @@ export function Communities() {
     }
   };
 
+  const handleCreateCommunity = async () => {
+    if (!createForm.name.trim() || !createForm.description.trim()) {
+      toast.error('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+
+    try {
+      const newCommunity = await CommunityService.createCommunity({
+        name: createForm.name,
+        description: createForm.description,
+        school: createForm.school || 'FPT University',
+        isPublic: true,
+        membersCount: 0,
+        clubCount: 0,
+        eventCount: 0,
+        gameDTO: []
+      });
+
+      setCommunities(prev => [newCommunity, ...prev]);
+      setCreateForm({ name: "", description: "", school: "", category: "" });
+      setShowCreateModal(false);
+      toast.success('Tạo cộng đồng thành công!');
+    } catch (error) {
+      console.error('❌ Error creating community:', error);
+      toast.error('Không thể tạo cộng đồng mới');
+    }
+  };
+
   // Filter communities based on search
   const filteredCommunities = communities.filter(community => {
     const matchesSearch = community.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          community.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         community.category.toLowerCase().includes(searchQuery.toLowerCase());
+                         (community.category && community.category.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesSearch;
   });
 
-  const getCommunityIcon = (category: string) => {
+  const getCommunityIcon = (category?: string) => {
     switch (category) {
       case 'Gaming': return <Gamepad2 className="w-5 h-5" />;
       case 'Education': return <BookOpen className="w-5 h-5" />;
@@ -75,15 +108,8 @@ export function Communities() {
     }
   };
 
-  const getCommunityColor = (index: number) => {
-    const colors = [
-      'from-blue-500 to-indigo-600',
-      'from-emerald-500 to-teal-600',
-      'from-orange-500 to-red-600',
-      'from-purple-500 to-pink-600',
-      'from-cyan-500 to-blue-600',
-    ];
-    return colors[index % colors.length];
+  const getCommunityColor = (community: Community) => {
+    return community.color || 'from-blue-500 to-indigo-600';
   };
 
   const tabs = [
@@ -180,7 +206,7 @@ export function Communities() {
                   className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-indigo-500 transition-all cursor-pointer transform hover:scale-105"
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <div className={`w-16 h-16 bg-gradient-to-r ${getCommunityColor(index)} rounded-xl flex items-center justify-center`}>
+                    <div className={`w-16 h-16 bg-gradient-to-r ${getCommunityColor(community)} rounded-xl flex items-center justify-center`}>
                       <span className="text-2xl">{community.avatar}</span>
                     </div>
                     {community.isPublic ? (
@@ -200,7 +226,7 @@ export function Communities() {
 
                   <div className="flex items-center space-x-2 mb-4">
                     {getCommunityIcon(community.category)}
-                    <span className="text-sm text-gray-400">{community.category}</span>
+                    <span className="text-sm text-gray-400">{community.category || 'General'}</span>
               </div>
 
                   <div className="flex items-center justify-between pt-4 border-t border-gray-700">
@@ -238,7 +264,7 @@ export function Communities() {
                 className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-indigo-500 transition-all cursor-pointer transform hover:scale-105"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className={`w-16 h-16 bg-gradient-to-r ${getCommunityColor(index)} rounded-xl flex items-center justify-center`}>
+                  <div className={`w-16 h-16 bg-gradient-to-r ${getCommunityColor(community)} rounded-xl flex items-center justify-center`}>
                     <span className="text-2xl">{community.avatar}</span>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -257,7 +283,7 @@ export function Communities() {
 
                 <div className="flex items-center space-x-2 mb-4">
                   {getCommunityIcon(community.category)}
-                  <span className="text-sm text-gray-400">{community.category}</span>
+                  <span className="text-sm text-gray-400">{community.category || 'General'}</span>
               </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-700">
@@ -371,6 +397,8 @@ export function Communities() {
                 </label>
                 <input
                   type="text"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({...createForm, name: e.target.value})}
                   placeholder="VD: Cộng đồng Valorant FPT"
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
                 />
@@ -382,6 +410,8 @@ export function Communities() {
                 </label>
                 <textarea
                   rows={3}
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm({...createForm, description: e.target.value})}
                   placeholder="Mô tả về cộng đồng..."
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
                 />
@@ -391,7 +421,11 @@ export function Communities() {
                 <label className="block text-sm font-medium text-white mb-2">
                   Danh mục
                 </label>
-                <select className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500">
+                <select 
+                  value={createForm.category}
+                  onChange={(e) => setCreateForm({...createForm, category: e.target.value})}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                >
                   <option value="">Chọn danh mục</option>
                   <option value="Gaming">Gaming</option>
                   <option value="Education">Education</option>
@@ -410,10 +444,7 @@ export function Communities() {
                 Hủy
               </button>
               <button
-                onClick={() => {
-                  toast.success('Cộng đồng đã được tạo!');
-                  setShowCreateModal(false);
-                }}
+                onClick={handleCreateCommunity}
                 className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
               >
                 Tạo cộng đồng
