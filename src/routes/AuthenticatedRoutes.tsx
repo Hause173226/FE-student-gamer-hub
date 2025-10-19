@@ -5,6 +5,7 @@ import { Communities } from "../pages/Communities";
 import { Profile } from "../pages/Profile";
 import { Events } from "../pages/Events";
 import { Rooms } from "../pages/Rooms";
+import Friends from "../pages/Friends"; // ✅ Import component Friends
 import { ViewType } from "../types";
 
 export const AuthenticatedApp: React.FC = () => {
@@ -16,6 +17,8 @@ export const AuthenticatedApp: React.FC = () => {
         return <Dashboard />;
       case "communities":
         return <Communities />;
+      case "friends":
+        return <Friends />; // ✅ Thêm case này
       case "rooms":
         return <Rooms />;
       case "events":

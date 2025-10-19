@@ -6,8 +6,8 @@ export interface User {
   university: string;
   level: number;
   xp: number;
-  role: 'admin' | 'moderator' | 'member';
-  status: 'online' | 'offline' | 'away' | 'busy';
+  role: "admin" | "moderator" | "member";
+  status: "online" | "offline" | "away" | "busy";
   isPlaying?: boolean;
 }
 
@@ -17,7 +17,7 @@ export interface Community {
   members: number;
   university: string;
   verified: boolean;
-  role?: 'Admin' | 'Moderator' | 'Member';
+  role?: "Admin" | "Moderator" | "Member";
   lastActivity: string;
   avatar: string;
   color: string;
@@ -38,7 +38,7 @@ export interface Event {
   participants: number;
   maxParticipants: number;
   prize: string;
-  status: 'Đang đăng ký' | 'Còn chỗ' | 'Đầy' | 'Đã kết thúc';
+  status: "Đang đăng ký" | "Còn chỗ" | "Đầy" | "Đã kết thúc";
   image?: string;
   tags: string[];
   isRegistered: boolean;
@@ -66,7 +66,7 @@ export interface Achievement {
 export interface Match {
   id: number;
   game: string;
-  result: 'Thắng' | 'Thua';
+  result: "Thắng" | "Thua";
   rank: string;
   time: string;
   duration: string;
@@ -78,7 +78,7 @@ export interface Message {
   user: {
     name: string;
     avatar: string;
-    role: 'admin' | 'moderator' | 'member';
+    role: "admin" | "moderator" | "member";
   };
   content: string;
   timestamp: string;
@@ -91,7 +91,7 @@ export interface Message {
 export interface Room {
   id: string;
   name: string;
-  type: 'text' | 'voice';
+  type: "text" | "voice";
   members: number;
   maxMembers?: number;
   hasVoice?: boolean;
@@ -112,4 +112,10 @@ export interface Mission {
   completed: boolean;
 }
 
-export type ViewType = 'dashboard' | 'communities' | 'rooms' | 'events' | 'profile';
+export type ViewType =
+  | "dashboard"
+  | "communities"
+  | "friends"
+  | "rooms"
+  | "events"
+  | "profile";
