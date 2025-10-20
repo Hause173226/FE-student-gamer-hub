@@ -1,8 +1,5 @@
 import { useState } from "react";
-<<<<<<< HEAD
 import { useNavigate } from "react-router-dom";
-import { Trophy, Star, Settings, LogOut, X, AlertCircle } from "lucide-react";
-=======
 import {
   Trophy,
   Star,
@@ -11,12 +8,15 @@ import {
   X,
   AlertCircle,
   Search,
+  Video,
+  Mic,
+  Monitor,
 } from "lucide-react";
->>>>>>> 408927fac4340bfa412e241d65f5e5b8c31cb82c
 import clsx from "clsx";
 import { MENU_ITEMS } from "../constants";
 import { useAuth } from "../contexts/AuthContext";
 import { GlobalSearchModal } from "./GlobalSearchModal";
+import { VideoCall } from "./VideoCall";
 
 interface SidebarProps {
   currentView: string;
@@ -25,23 +25,19 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-<<<<<<< HEAD
-export function Sidebar({ currentView, onViewChange, onToggle }: SidebarProps) {
-  const navigate = useNavigate();
-=======
 export function Sidebar({
   currentView,
   onViewChange,
   isOpen,
   onToggle,
 }: SidebarProps) {
->>>>>>> 408927fac4340bfa412e241d65f5e5b8c31cb82c
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
+  const [showVideoCall, setShowVideoCall] = useState<boolean>(false);
 
-<<<<<<< HEAD
   const handleMenuClick = (id: string) => {
     // Special handling for chat-groups
     if (id === 'chat-groups') {
@@ -50,13 +46,12 @@ export function Sidebar({
       navigate(`/${id}`);
     }
     onViewChange(id);
-    onToggle();
+    if (isOpen) {
+      onToggle();
+    }
   };
 
-  const handleLogout = async () => {
-=======
   const handleLogout = async (): Promise<void> => {
->>>>>>> 408927fac4340bfa412e241d65f5e5b8c31cb82c
     setIsLoggingOut(true);
     try {
       await logout();
@@ -67,6 +62,172 @@ export function Sidebar({
     } finally {
       setIsLoggingOut(false);
       setShowLogoutModal(false);
+    }
+  };
+
+  // Test functions
+  const testCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.muted = true;
+      video.style.width = '300px';
+      video.style.height = '200px';
+      video.style.border = '2px solid green';
+      video.style.position = 'fixed';
+      video.style.top = '80px';
+      video.style.left = '20px';
+      video.style.zIndex = '9999';
+      video.style.backgroundColor = 'black';
+      video.style.borderRadius = '8px';
+      
+      const label = document.createElement('div');
+      label.textContent = 'Test Camera - Click to close';
+      label.style.position = 'absolute';
+      label.style.top = '5px';
+      label.style.left = '5px';
+      label.style.background = 'rgba(0, 0, 0, 0.7)';
+      label.style.color = 'white';
+      label.style.padding = '2px 6px';
+      label.style.borderRadius = '4px';
+      label.style.fontSize = '12px';
+      label.style.fontWeight = 'bold';
+      label.style.cursor = 'pointer';
+      
+      video.appendChild(label);
+      document.body.appendChild(video);
+      
+      const closeTest = () => {
+        stream.getTracks().forEach(track => track.stop());
+        document.body.removeChild(video);
+      };
+      
+      label.onclick = closeTest;
+      video.onclick = closeTest;
+    } catch (error) {
+      console.error('Camera test error:', error);
+      alert('Không thể truy cập camera: ' + error);
+    }
+  };
+
+  const testMic = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const analyser = audioContext.createAnalyser();
+      const microphone = audioContext.createMediaStreamSource(stream);
+      
+      microphone.connect(analyser);
+      analyser.fftSize = 256;
+      
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      const indicator = document.createElement('div');
+      indicator.style.position = 'fixed';
+      indicator.style.top = '50%';
+      indicator.style.left = '50%';
+      indicator.style.transform = 'translate(-50%, -50%)';
+      indicator.style.zIndex = '9999';
+      indicator.style.background = 'rgba(0, 0, 0, 0.8)';
+      indicator.style.color = 'white';
+      indicator.style.padding = '20px';
+      indicator.style.borderRadius = '8px';
+      indicator.style.textAlign = 'center';
+      indicator.innerHTML = `
+        <div style="font-size: 18px; margin-bottom: 10px;">🎤 Test Microphone</div>
+        <div id="mic-level" style="font-size: 24px; color: #10b981;">●</div>
+        <div style="font-size: 14px; margin-top: 10px;">Click to close</div>
+      `;
+      
+      document.body.appendChild(indicator);
+      
+      const detectAudio = () => {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          sum += dataArray[i];
+        }
+        const average = sum / bufferLength;
+        
+        const levelEl = document.getElementById('mic-level');
+        if (levelEl) {
+          if (average > 30) {
+            levelEl.style.color = '#ef4444';
+            levelEl.textContent = '🔴 SPEAKING';
+          } else {
+            levelEl.style.color = '#10b981';
+            levelEl.textContent = '● Listening';
+          }
+        }
+        
+        requestAnimationFrame(detectAudio);
+      };
+      
+      detectAudio();
+      
+      const closeTest = () => {
+        stream.getTracks().forEach(track => track.stop());
+        audioContext.close();
+        document.body.removeChild(indicator);
+      };
+      
+      indicator.onclick = closeTest;
+    } catch (error) {
+      console.error('Mic test error:', error);
+      alert('Không thể truy cập microphone: ' + error);
+    }
+  };
+
+  const testScreenShare = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ 
+        video: { mediaSource: 'screen' } 
+      } as any);
+      
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.muted = true;
+      video.style.width = '80vw';
+      video.style.height = '80vh';
+      video.style.border = '2px solid blue';
+      video.style.position = 'fixed';
+      video.style.top = '50%';
+      video.style.left = '50%';
+      video.style.transform = 'translate(-50%, -50%)';
+      video.style.zIndex = '9999';
+      video.style.backgroundColor = 'black';
+      video.style.borderRadius = '8px';
+      
+      const label = document.createElement('div');
+      label.textContent = 'Test Screen Share - Click to close';
+      label.style.position = 'absolute';
+      label.style.top = '10px';
+      label.style.left = '10px';
+      label.style.background = 'rgba(0, 0, 0, 0.8)';
+      label.style.color = 'white';
+      label.style.padding = '8px 12px';
+      label.style.borderRadius = '4px';
+      label.style.fontSize = '14px';
+      label.style.fontWeight = 'bold';
+      label.style.cursor = 'pointer';
+      
+      video.appendChild(label);
+      document.body.appendChild(video);
+      
+      const closeTest = () => {
+        stream.getTracks().forEach(track => track.stop());
+        document.body.removeChild(video);
+      };
+      
+      label.onclick = closeTest;
+      video.onclick = closeTest;
+    } catch (error) {
+      console.error('Screen share test error:', error);
+      alert('Không thể chia sẻ màn hình: ' + error);
     }
   };
 
@@ -146,16 +307,7 @@ export function Sidebar({
               return (
                 <li key={item.id}>
                   <button
-<<<<<<< HEAD
                     onClick={() => handleMenuClick(item.id)}
-=======
-                    onClick={() => {
-                      onViewChange(item.id);
-                      if (isOpen) {
-                        onToggle();
-                      }
-                    }}
->>>>>>> 408927fac4340bfa412e241d65f5e5b8c31cb82c
                     className={clsx(
                       "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
                       currentView === item.id
@@ -170,6 +322,49 @@ export function Sidebar({
               );
             })}
           </ul>
+
+          {/* Test Section */}
+          <div className="mt-6 pt-4 border-t border-gray-700">
+            <div className="text-xs text-gray-400 mb-3 px-3">🧪 Test Tools</div>
+            <ul className="space-y-2">
+              <li>
+                <button
+                  onClick={testCamera}
+                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-300 hover:bg-gray-700 hover:text-white"
+                >
+                  <Video className="w-5 h-5" />
+                  <span className="text-sm font-medium">Test Camera</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={testMic}
+                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-300 hover:bg-gray-700 hover:text-white"
+                >
+                  <Mic className="w-5 h-5" />
+                  <span className="text-sm font-medium">Test Mic</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={testScreenShare}
+                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-300 hover:bg-gray-700 hover:text-white"
+                >
+                  <Monitor className="w-5 h-5" />
+                  <span className="text-sm font-medium">Test Screen Share</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => setShowVideoCall(true)}
+                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-300 hover:bg-gray-700 hover:text-white"
+                >
+                  <Video className="w-5 h-5" />
+                  <span className="text-sm font-medium">Test Video Call</span>
+                </button>
+              </li>
+            </ul>
+          </div>
         </nav>
 
         {/* Footer */}
@@ -211,6 +406,15 @@ export function Sidebar({
       {/* Global Search Modal */}
       {showSearchModal && (
         <GlobalSearchModal onClose={() => setShowSearchModal(false)} />
+      )}
+
+      {/* Video Call Test Modal */}
+      {showVideoCall && (
+        <VideoCall
+          roomId="test-room"
+          userId={user?.UserName || "test-user"}
+          onEndCall={() => setShowVideoCall(false)}
+        />
       )}
 
       {/* Logout Confirmation Modal */}

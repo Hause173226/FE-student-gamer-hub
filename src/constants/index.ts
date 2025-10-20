@@ -28,6 +28,7 @@ export const MENU_ITEMS = [
 export const MOBILE_NAV_ITEMS = [
   { id: "dashboard", label: "Trang chủ", icon: Home },
   { id: "communities", label: "Cộng đồng", icon: Users },
+  { id: "friends", label: "Bạn bè", icon: Smile },
   { id: "rooms", label: "Chat", icon: MessageSquare },
   { id: "events", label: "Sự kiện", icon: Calendar },
   { id: "profile", label: "Hồ sơ", icon: User },
