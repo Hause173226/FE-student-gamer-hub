@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { 
   Hash, 
   Lock, 
@@ -8,20 +8,12 @@ import {
   Plus, 
   Search,
   Mic,
-  MicOff,
-  Headphones,
-  HeadphonesOff,
-  Volume2,
-  VolumeX,
-  MoreHorizontal,
   Crown,
   Shield,
   Star,
   MessageSquare,
-  Phone,
-  Video,
   UserPlus,
-  Settings2
+  X
 } from 'lucide-react';
 import { RoomService } from '../services/roomService';
 import { ClubService } from '../services/clubService';
@@ -31,7 +23,6 @@ import { toast } from 'react-hot-toast';
 
 export default function ClubDetail() {
   const { clubId } = useParams<{ clubId: string }>();
-  const navigate = useNavigate();
   
   // State
   const [club, setClub] = useState<Club | null>(null);
@@ -39,6 +30,16 @@ export default function ClubDetail() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Create room modal state
+  const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
+  const [createRoomData, setCreateRoomData] = useState({
+    name: '',
+    description: '',
+    joinPolicy: RoomJoinPolicy.Open,
+    password: '',
+    capacity: ''
+  });
   
   // Load club and rooms
   useEffect(() => {
@@ -85,6 +86,43 @@ export default function ClubDetail() {
     } catch (error) {
       console.error('❌ Error joining room:', error);
       toast.error('Không thể tham gia room');
+    }
+  };
+
+  const handleCreateRoom = async () => {
+    if (!clubId || !createRoomData.name.trim()) {
+      toast.error('Vui lòng nhập tên room');
+      return;
+    }
+
+    try {
+      const roomData = {
+        clubId: clubId,
+        name: createRoomData.name.trim(),
+        description: createRoomData.description.trim() || undefined,
+        joinPolicy: createRoomData.joinPolicy,
+        password: createRoomData.password.trim() || undefined,
+        capacity: createRoomData.capacity ? parseInt(createRoomData.capacity) : undefined
+      };
+
+      await RoomService.createRoom(roomData);
+      toast.success(`Đã tạo room "${createRoomData.name}" thành công`);
+      
+      // Reset form
+      setCreateRoomData({
+        name: '',
+        description: '',
+        joinPolicy: RoomJoinPolicy.Open,
+        password: '',
+        capacity: ''
+      });
+      setShowCreateRoomModal(false);
+      
+      // Refresh rooms
+      loadClubAndRooms();
+    } catch (error) {
+      console.error('❌ Error creating room:', error);
+      toast.error('Không thể tạo room');
     }
   };
 
@@ -173,8 +211,20 @@ export default function ClubDetail() {
         {/* Rooms List */}
         <div className="flex-1 overflow-y-auto">
           <div className="p-2">
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-2">
-              ROOMS
+            <div className="flex items-center justify-between mb-2 px-2">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                ROOMS
+              </div>
+              {/* Show create room button only for owner */}
+              {club?.isOwner && (
+                <button
+                  onClick={() => setShowCreateRoomModal(true)}
+                  className="p-1 hover:bg-gray-700 rounded transition-colors"
+                  title="Tạo room mới"
+                >
+                  <Plus className="w-4 h-4 text-gray-400 hover:text-white" />
+                </button>
+              )}
             </div>
             <div className="space-y-1">
               {filteredRooms.map((room) => (
@@ -236,7 +286,7 @@ export default function ClubDetail() {
                 <Mic className="w-4 h-4" />
               </button>
               <button className="p-1 hover:bg-gray-700 rounded">
-                <Headphones className="w-4 h-4" />
+                <Mic className="w-4 h-4" />
               </button>
               <button className="p-1 hover:bg-gray-700 rounded">
                 <Settings className="w-4 h-4" />
@@ -260,13 +310,13 @@ export default function ClubDetail() {
               <div className="flex-1" />
               <div className="flex items-center space-x-2">
                 <button className="p-2 hover:bg-gray-700 rounded">
-                  <Phone className="w-4 h-4" />
+                  <MessageSquare className="w-4 h-4" />
                 </button>
                 <button className="p-2 hover:bg-gray-700 rounded">
-                  <Video className="w-4 h-4" />
+                  <MessageSquare className="w-4 h-4" />
                 </button>
                 <button className="p-2 hover:bg-gray-700 rounded">
-                  <Settings2 className="w-4 h-4" />
+                  <Settings className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -346,6 +396,116 @@ export default function ClubDetail() {
           </div>
         )}
       </div>
+
+      {/* Create Room Modal */}
+      {showCreateRoomModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Tạo Room Mới</h3>
+              <button
+                onClick={() => setShowCreateRoomModal(false)}
+                className="p-1 hover:bg-gray-700 rounded transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Room Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Tên Room *
+                </label>
+                <input
+                  type="text"
+                  value={createRoomData.name}
+                  onChange={(e) => setCreateRoomData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Nhập tên room..."
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Mô tả
+                </label>
+                <textarea
+                  value={createRoomData.description}
+                  onChange={(e) => setCreateRoomData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Mô tả về room..."
+                  rows={3}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:border-blue-500 resize-none"
+                />
+              </div>
+
+              {/* Join Policy */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Chính sách tham gia
+                </label>
+                <select
+                  value={createRoomData.joinPolicy}
+                  onChange={(e) => setCreateRoomData(prev => ({ ...prev, joinPolicy: e.target.value as RoomJoinPolicy }))}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value={RoomJoinPolicy.Open}>Mở - Ai cũng có thể tham gia</option>
+                  <option value={RoomJoinPolicy.RequiresApproval}>Yêu cầu phê duyệt</option>
+                  <option value={RoomJoinPolicy.RequiresPassword}>Bảo vệ bằng mật khẩu</option>
+                </select>
+              </div>
+
+              {/* Password (if password protected) */}
+              {createRoomData.joinPolicy === RoomJoinPolicy.RequiresPassword && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Mật khẩu *
+                  </label>
+                  <input
+                    type="password"
+                    value={createRoomData.password}
+                    onChange={(e) => setCreateRoomData(prev => ({ ...prev, password: e.target.value }))}
+                    placeholder="Nhập mật khẩu..."
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
+
+              {/* Capacity */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Sức chứa (tùy chọn)
+                </label>
+                <input
+                  type="number"
+                  value={createRoomData.capacity}
+                  onChange={(e) => setCreateRoomData(prev => ({ ...prev, capacity: e.target.value }))}
+                  placeholder="Số lượng thành viên tối đa..."
+                  min="1"
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={() => setShowCreateRoomModal(false)}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleCreateRoom}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+              >
+                Tạo Room
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

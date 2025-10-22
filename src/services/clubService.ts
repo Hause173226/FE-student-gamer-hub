@@ -123,6 +123,42 @@ export class ClubService {
     }
   }
 
+  // Get club members
+  static async getClubMembers(clubId: string, options?: {
+    offset?: number;
+    limit?: number;
+  }): Promise<{
+    Items: any[]; // TODO: Define proper ClubMember type
+    Page: number;
+    Size: number;
+    TotalCount: number;
+    TotalPages: number;
+    HasPrevious: boolean;
+    HasNext: boolean;
+    Sort: string;
+    Desc: boolean;
+  }> {
+    try {
+      console.log(`🔄 Fetching members for club ${clubId}...`);
+      
+      const params = new URLSearchParams();
+      if (options?.offset) params.append('offset', options.offset.toString());
+      if (options?.limit) params.append('limit', options.limit.toString());
+      
+      const url = params.toString() 
+        ? `/api/Clubs/${clubId}/members?${params}` 
+        : `/api/Clubs/${clubId}/members`;
+      
+      const response = await axiosInstance.get(url);
+      console.log('✅ Club members fetched:', response.data);
+      
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching club members:', error);
+      throw new Error('Không thể tải danh sách thành viên club');
+    }
+  }
+
   // Kick club member
   static async kickClubMember(clubId: string, targetUserId: number, adminId: number): Promise<void> {
     try {
@@ -152,6 +188,7 @@ export class ClubService {
       category: this.getClubCategory(club.Name, club.Description || ''),
       createdAt: new Date().toISOString().split('T')[0], // Default to today
       isJoined: club.IsMember || false,
+      isOwner: club.IsOwner || false, // Add isOwner property
     };
   }
 

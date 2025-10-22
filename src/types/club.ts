@@ -33,6 +33,7 @@ export interface Club {
   category?: string;
   createdAt?: string;
   isJoined?: boolean;
+  isOwner?: boolean; // Added for owner check
 }
 
 // Club Member types
