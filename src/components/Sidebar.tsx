@@ -11,12 +11,16 @@ import {
   Video,
   Mic,
   Monitor,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import clsx from "clsx";
 import { MENU_ITEMS } from "../constants";
 import { useAuth } from "../contexts/AuthContext";
 import { GlobalSearchModal } from "./GlobalSearchModal";
 import { VideoCall } from "./VideoCall";
+import { MembershipService } from "../services/membershipService";
+import { SidebarClub } from "../types/membership";
 
 interface SidebarProps {
   currentView: string;
@@ -37,8 +41,40 @@ export function Sidebar({
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
   const [showVideoCall, setShowVideoCall] = useState<boolean>(false);
+  
+  // Clubs state
+  const [clubs, setClubs] = useState<SidebarClub[]>([]);
+  const [loadingClubs, setLoadingClubs] = useState<boolean>(false);
+  const [showClubs, setShowClubs] = useState<boolean>(false);
+
+  // Load clubs from API
+  const loadClubs = async () => {
+    if (loadingClubs) return;
+    
+    setLoadingClubs(true);
+    try {
+      const clubsData = await MembershipService.getMembershipTree();
+      setClubs(clubsData);
+    } catch (error) {
+      console.error('❌ Error loading clubs:', error);
+      setClubs([]);
+    } finally {
+      setLoadingClubs(false);
+    }
+  };
 
   const handleMenuClick = (id: string) => {
+    // Special handling for rooms (Phòng chat)
+    if (id === 'rooms') {
+      if (!showClubs) {
+        loadClubs();
+        setShowClubs(true);
+      } else {
+        setShowClubs(false);
+      }
+      return;
+    }
+    
     // Special handling for chat-groups
     if (id === 'chat-groups') {
       navigate('/chat-groups');
@@ -46,6 +82,13 @@ export function Sidebar({
       navigate(`/${id}`);
     }
     onViewChange(id);
+    if (isOpen) {
+      onToggle();
+    }
+  };
+
+  const handleClubClick = (clubId: string) => {
+    navigate(`/clubs/${clubId}`);
     if (isOpen) {
       onToggle();
     }
@@ -304,6 +347,8 @@ export function Sidebar({
           <ul className="space-y-2">
             {MENU_ITEMS.map((item) => {
               const Icon = item.icon;
+              const isRooms = item.id === 'rooms';
+              
               return (
                 <li key={item.id}>
                   <button
@@ -316,8 +361,48 @@ export function Sidebar({
                     )}
                   >
                     <Icon className="w-5 h-5" />
-                    <span className="text-sm font-medium">{item.label}</span>
+                    <span className="text-sm font-medium flex-1">{item.label}</span>
+                    {isRooms && (
+                      showClubs ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )
+                    )}
                   </button>
+                  
+                  {/* Clubs list for rooms */}
+                  {isRooms && showClubs && (
+                    <div className="ml-6 mt-2 space-y-1">
+                      {loadingClubs ? (
+                        <div className="text-xs text-gray-400 px-3 py-2">
+                          Đang tải clubs...
+                        </div>
+                      ) : clubs.length > 0 ? (
+                        clubs.map((club) => (
+                          <button
+                            key={club.id}
+                            onClick={() => handleClubClick(club.id)}
+                            className="w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors text-gray-400 hover:bg-gray-700 hover:text-white"
+                          >
+                            <span className="text-lg">{club.avatar}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                {club.name}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {club.roomsCount} phòng
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="text-xs text-gray-400 px-3 py-2">
+                          Chưa tham gia club nào
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </li>
               );
             })}

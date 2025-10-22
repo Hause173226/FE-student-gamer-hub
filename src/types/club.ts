@@ -1,20 +1,28 @@
 // Club types based on backend ClubDTO
 export interface ClubDTO {
-  name: string;
-  description: string;
-  isPublic: boolean;
-  membersCount: number;
+  Id: string;
+  CommunityId: string;
+  Name: string;
+  Description?: string;
+  IsPublic: boolean;
+  MembersCount: number;
+  RoomsCount?: number;
+  OwnerId?: string;
+  IsMember?: boolean;
+  IsOwner?: boolean;
+  CreatedAtUtc?: string;
+  UpdatedAtUtc?: string;
 }
 
 // Frontend Club interface (extended from backend)
 export interface Club {
-  id: number;
+  id: string | number; // Can be string GUID or number
   name: string;
   description: string;
   isPublic: boolean;
   membersCount: number;
   // Additional frontend properties
-  communityId?: number;
+  communityId?: string | number; // Can be string GUID or number
   avatar?: string;
   color?: string;
   verified?: boolean;
@@ -43,9 +51,12 @@ export interface JoinClubDTO {
 
 // API Response types
 export interface ClubListResponse {
-  data: ClubDTO[];
-  success: boolean;
-  message?: string;
+  Items: ClubDTO[];
+  NextCursor: string | null;
+  PrevCursor: string | null;
+  Size: number;
+  Sort: string;
+  Desc: boolean;
 }
 
 export interface ClubResponse {

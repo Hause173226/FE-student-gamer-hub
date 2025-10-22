@@ -1,13 +1,14 @@
 import axios from "axios";
 import { handleTokenExpiration } from "../utils/authUtils";
+import { API_CONFIG } from "../config/apiConfig";
 
 // Base URL for PlatformGame backend (Communities, Clubs, Rooms)
-const PLATFORM_GAME_URL = 'http://localhost:8080';
+const PLATFORM_GAME_URL = API_CONFIG.PLATFORM_GAME_URL;
 // Base URL for StudentGamerHub backend (Auth, Users)
-const STUDENT_GAMER_HUB_URL = 'https://localhost:7227';
+const STUDENT_GAMER_HUB_URL = API_CONFIG.STUDENT_GAMER_HUB_URL;
 
 const axiosInstance = axios.create({
-  baseURL: PLATFORM_GAME_URL,
+  baseURL: STUDENT_GAMER_HUB_URL,
   withCredentials: false,
   headers: {
     "Content-Type": "application/json",

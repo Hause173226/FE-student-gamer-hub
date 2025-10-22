@@ -5,7 +5,9 @@ import {
   Image as ImageIcon, Loader2, Mic, MicOff, Volume2, VolumeX,
   Crown, Shield, Plus, Hash as HashIcon, Volume2 as VoiceIcon, Video
 } from 'lucide-react';
-import { getChatRoomsByGroupId, MockChatRoom } from '../data/mockData';
+import { Club } from '../types/club';
+import { Room } from '../types/room';
+import ClubService from '../services/clubService';
 import { useAuth } from '../contexts/AuthContext';
 import { fakeWebSocketService } from '../services/fakeWebSocketService';
 import { VideoCall } from '../components/VideoCall';
@@ -30,9 +32,9 @@ export function DiscordChat() {
   const safeUser = user || { id: '1', name: 'Guest', avatar: '👤' };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  const [group, setGroup] = useState<any>(null);
-  const [channels, setChannels] = useState<MockChatRoom[]>([]);
-  const [selectedChannel, setSelectedChannel] = useState<MockChatRoom | null>(null);
+  const [club, setClub] = useState<Club | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
@@ -45,19 +47,19 @@ export function DiscordChat() {
     localStorage.removeItem('chat_messages');
     localStorage.removeItem('test_user');
     setMessages([]);
-    loadGroupAndChannels();
+    loadClubAndRooms();
   }, [groupId]);
 
   // WebSocket setup for real-time sync
   useEffect(() => {
-    if (!safeUser || !selectedChannel) return;
+    if (!safeUser || !selectedRoom) return;
 
     // Join room
-    fakeWebSocketService.joinRoom(selectedChannel.id, Number(safeUser.id));
+    fakeWebSocketService.joinRoom(selectedRoom.id, Number(safeUser.id));
 
     // Subscribe to messages
     const handleMessage = (wsMessage: any) => {
-      if (wsMessage.type === 'message' && wsMessage.roomId === selectedChannel.id) {
+      if (wsMessage.type === 'message' && wsMessage.roomId === selectedRoom.id) {
         const newMessage = wsMessage.data;
         
         // Check if message already exists to avoid duplicates
@@ -78,57 +80,70 @@ export function DiscordChat() {
 
     fakeWebSocketService.subscribe('message', handleMessage);
 
-    // Cleanup on unmount or channel change
+    // Cleanup on unmount or room change
     return () => {
       fakeWebSocketService.unsubscribe('message', handleMessage);
-      fakeWebSocketService.leaveRoom(selectedChannel.id, Number(safeUser.id));
+      fakeWebSocketService.leaveRoom(selectedRoom.id, Number(safeUser.id));
     };
-  }, [safeUser, selectedChannel]);
+  }, [safeUser, selectedRoom]);
 
-  // Load messages when selectedChannel changes
+  // Load messages when selectedRoom changes
   useEffect(() => {
-    if (selectedChannel) {
-      loadMessages(selectedChannel.id);
+    if (selectedRoom) {
+      loadMessages(selectedRoom.id);
     }
-  }, [selectedChannel]);
+  }, [selectedRoom]);
 
-  const loadGroupAndChannels = async () => {
+  const loadClubAndRooms = async () => {
     if (!groupId) return;
     
     setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Load club data
+      const clubData = await ClubService.getClubById(Number(groupId));
+      setClub(clubData);
       
-      // Get channels from mock data
-      const channelsData = getChatRoomsByGroupId(Number(groupId));
-      setChannels(channelsData);
+      // For now, create mock rooms since we don't have Room API yet
+      const mockRooms: Room[] = [
+        {
+          id: 1,
+          clubId: Number(groupId),
+          name: 'general-chat',
+          description: 'Phòng chat chung của club',
+          joinPolicy: 'Open' as any,
+          membersCount: clubData.membersCount,
+          avatar: '💬',
+          color: 'from-blue-500 to-cyan-600',
+          isJoined: true,
+          createdAt: new Date().toISOString().split('T')[0]
+        },
+        {
+          id: 2,
+          clubId: Number(groupId),
+          name: 'voice-chat',
+          description: 'Phòng voice chat',
+          joinPolicy: 'Open' as any,
+          membersCount: Math.floor(clubData.membersCount / 3),
+          avatar: '🎤',
+          color: 'from-purple-500 to-pink-600',
+          isJoined: true,
+          createdAt: new Date().toISOString().split('T')[0]
+        }
+      ];
       
-      // Set group info (mock)
-      const groupNames: { [key: string]: string } = {
-        '1': 'Valorant Team 1',
-        '2': 'Valorant Team 2', 
-        '3': 'Valorant Team 3',
-        '4': 'Mobile Legends',
-        '5': 'Mobile Legends Team 2'
-      };
+      setRooms(mockRooms);
       
-      setGroup({
-        id: Number(groupId),
-        name: groupNames[groupId || '1'] || 'Unknown Group',
-        membersCount: 18
-      });
-      
-      // Select first channel by default
-      if (channelsData.length > 0) {
-        setSelectedChannel(channelsData[0]);
-        loadMessages(channelsData[0].id);
+      // Select first room by default
+      if (mockRooms.length > 0) {
+        setSelectedRoom(mockRooms[0]);
+        loadMessages(mockRooms[0].id);
       }
       
-      console.log('✅ Loaded channels:', channelsData);
+      console.log('✅ Loaded club:', clubData);
+      console.log('✅ Loaded rooms:', mockRooms);
     } catch (error) {
       console.error('❌ Error loading data:', error);
-      toast.error('Không thể tải dữ liệu nhóm');
+      toast.error('Không thể tải dữ liệu club');
     } finally {
       setLoading(false);
     }
@@ -166,25 +181,25 @@ export function DiscordChat() {
   };
 
 
-  const handleChannelSelect = (channel: MockChatRoom) => {
-    setSelectedChannel(channel);
+  const handleRoomSelect = (room: Room) => {
+    setSelectedRoom(room);
     
-    // If it's a voice channel, start voice call (no video, no mic, no screen share)
-    if (channel.name.includes('voice')) {
+    // If it's a voice room, start voice call (no video, no mic, no screen share)
+    if (room.name.includes('voice')) {
       startVideoCall(); // Voice call only
     } else {
-      loadMessages(channel.id);
+      loadMessages(room.id);
     }
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !safeUser || !selectedChannel) return;
+    if (!message.trim() || !safeUser || !selectedRoom) return;
 
     // Create new message with better ID
     const newMessage: ChatMessage = {
-      id: `msg_${selectedChannel.id}_${Date.now()}_${safeUser.id}`,
-      roomId: selectedChannel.id,
+      id: `msg_${selectedRoom.id}_${Date.now()}_${safeUser.id}`,
+      roomId: selectedRoom.id,
       userId: Number(safeUser.id),
       username: safeUser.fullName || safeUser.userName || safeUser.name || 'User',
       message: message.trim(),
@@ -221,7 +236,7 @@ export function DiscordChat() {
   };
 
   const startVideoCall = () => {
-    if (!user || !selectedChannel) {
+    if (!user || !selectedRoom) {
       toast.error('Không thể bắt đầu video call');
       return;
     }
@@ -240,17 +255,17 @@ export function DiscordChat() {
       <div className="h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Đang tải nhóm...</p>
+          <p className="text-gray-400">Đang tải club...</p>
         </div>
       </div>
     );
   }
 
-  if (!group) {
+  if (!club) {
     return (
       <div className="h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-400 mb-4">Không tìm thấy nhóm</p>
+          <p className="text-gray-400 mb-4">Không tìm thấy club</p>
           <button
             onClick={() => navigate(-1)}
             className="text-indigo-400 hover:text-indigo-300"
@@ -273,7 +288,7 @@ export function DiscordChat() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="w-12 h-12 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center mb-4">
-          <span className="text-lg font-bold">{group.name.substring(0, 2)}</span>
+          <span className="text-lg font-bold">{club.name.substring(0, 2)}</span>
         </div>
         <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
           <span className="text-xs font-bold">1</span>
@@ -284,8 +299,8 @@ export function DiscordChat() {
       <div className="w-60 bg-gray-800 border-r border-gray-700 flex flex-col">
         {/* Server Header */}
         <div className="p-4 border-b border-gray-700">
-          <h2 className="font-bold text-white">{group.name}</h2>
-          <p className="text-xs text-gray-400">1 online</p>
+          <h2 className="font-bold text-white">{club.name}</h2>
+          <p className="text-xs text-gray-400">{club.membersCount} thành viên</p>
         </div>
 
         {/* Text Channels */}
@@ -300,18 +315,18 @@ export function DiscordChat() {
               </button>
             </div>
             <div className="space-y-1">
-              {channels.filter(ch => !ch.name.includes('voice')).map((channel) => (
+              {rooms.filter(room => !room.name.includes('voice')).map((room) => (
                 <button
-                  key={channel.id}
-                  onClick={() => handleChannelSelect(channel)}
+                  key={room.id}
+                  onClick={() => handleRoomSelect(room)}
                   className={`w-full flex items-center space-x-2 px-2 py-1 rounded text-left transition-colors ${
-                    selectedChannel?.id === channel.id
+                    selectedRoom?.id === room.id
                       ? 'bg-gray-700 text-white'
                       : 'text-gray-400 hover:bg-gray-700 hover:text-white'
                   }`}
                 >
                   <HashIcon className="w-4 h-4" />
-                  <span className="text-sm">{channel.name}</span>
+                  <span className="text-sm">{room.name}</span>
                 </button>
               ))}
             </div>
@@ -328,18 +343,18 @@ export function DiscordChat() {
               </button>
             </div>
             <div className="space-y-1">
-              {channels.filter(ch => ch.name.includes('voice')).map((channel) => (
+              {rooms.filter(room => room.name.includes('voice')).map((room) => (
                 <button
-                  key={channel.id}
-                  onClick={() => handleChannelSelect(channel)}
+                  key={room.id}
+                  onClick={() => handleRoomSelect(room)}
                   className={`w-full flex items-center space-x-2 px-2 py-1 rounded text-left transition-colors ${
-                    selectedChannel?.id === channel.id
+                    selectedRoom?.id === room.id
                       ? 'bg-gray-700 text-white'
                       : 'text-gray-400 hover:bg-gray-700 hover:text-white'
                   }`}
                 >
                   <VoiceIcon className="w-4 h-4" />
-                  <span className="text-sm">{channel.name}</span>
+                  <span className="text-sm">{room.name}</span>
                 </button>
               ))}
             </div>
@@ -388,21 +403,21 @@ export function DiscordChat() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Chat Header */}
-        {selectedChannel && (
+        {selectedRoom && (
           <div className="bg-gray-800 border-b border-gray-700 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                {selectedChannel.name.includes('voice') ? (
+                {selectedRoom.name.includes('voice') ? (
                   <VoiceIcon className="w-5 h-5 text-gray-400" />
                 ) : (
                   <HashIcon className="w-5 h-5 text-gray-400" />
                 )}
                 <div>
-                  <h1 className="font-semibold text-white">{selectedChannel.name}</h1>
-                  <p className="text-xs text-gray-400">{selectedChannel.description}</p>
+                  <h1 className="font-semibold text-white">{selectedRoom.name}</h1>
+                  <p className="text-xs text-gray-400">{selectedRoom.description}</p>
                 </div>
               </div>
-              {!selectedChannel.name.includes('voice') && (
+              {!selectedRoom.name.includes('voice') && (
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={startVideoCall}
@@ -419,7 +434,7 @@ export function DiscordChat() {
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {selectedChannel && (
+          {selectedRoom && (
             <>
               {messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
@@ -477,7 +492,7 @@ export function DiscordChat() {
         </div>
 
         {/* Message Input */}
-        {selectedChannel && !selectedChannel.name.includes('voice') && (
+        {selectedRoom && !selectedRoom.name.includes('voice') && (
           <div className="bg-gray-800 border-t border-gray-700 p-4">
             <form onSubmit={handleSendMessage} className="flex items-center space-x-3">
               <div className="flex space-x-2">
@@ -499,7 +514,7 @@ export function DiscordChat() {
                   type="text"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder={`Nhắn tin tại #${selectedChannel.name}...`}
+                  placeholder={`Nhắn tin tại #${selectedRoom.name}...`}
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
@@ -523,7 +538,7 @@ export function DiscordChat() {
         )}
 
         {/* Voice Channel UI */}
-        {selectedChannel && selectedChannel.name.includes('voice') && (
+        {selectedRoom && selectedRoom.name.includes('voice') && (
           <div className="bg-gray-800 border-t border-gray-700 p-4">
             <div className="text-center">
               <VoiceIcon className="w-16 h-16 text-gray-600 mx-auto mb-4" />
@@ -555,7 +570,7 @@ export function DiscordChat() {
       {/* Video Call Component */}
       {isVideoCallActive && (
         <VideoCall
-          roomId={selectedChannel?.id?.toString() || '1'}
+          roomId={selectedRoom?.id?.toString() || '1'}
           userId={safeUser.id?.toString() || '1'}
           onEndCall={endVideoCall}
         />

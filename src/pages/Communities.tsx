@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Community } from "../types/community";
 import CommunityService from "../services/communityService";
+import { DebugInfo } from "../components/DebugInfo";
 import toast from "react-hot-toast";
 
 export function Communities() {
@@ -49,13 +50,14 @@ export function Communities() {
   const loadCommunities = async () => {
     setLoading(true);
     try {
+      console.log('🔄 Loading communities from API...');
       const data = await CommunityService.getAllCommunities();
       setCommunities(data);
       console.log('✅ Loaded communities:', data);
       toast.success(`Đã tải ${data.length} cộng đồng`);
     } catch (error) {
       console.error('❌ Error loading communities:', error);
-      toast.error('Không thể tải danh sách cộng đồng');
+      toast.error('Không thể tải danh sách cộng đồng. Vui lòng kiểm tra kết nối và đăng nhập lại.');
     } finally {
       setLoading(false);
     }
@@ -72,11 +74,7 @@ export function Communities() {
         name: createForm.name,
         description: createForm.description,
         school: createForm.school || 'FPT University',
-        isPublic: true,
-        membersCount: 0,
-        clubCount: 0,
-        eventCount: 0,
-        gameDTO: []
+        isPublic: true
       });
 
       setCommunities(prev => [newCommunity, ...prev]);
@@ -453,6 +451,9 @@ export function Communities() {
               </div>
         </div>
       )}
+      
+      {/* Debug Info Component */}
+      <DebugInfo />
     </div>
   );
 }

@@ -1,17 +1,16 @@
 import axiosInstance from './axiosInstance';
-import { ClubDTO, Club, ClubMemberDTO, JoinClubDTO } from '../types/club';
-
-const API_BASE_URL = '/api/clubs';
+import { ClubDTO, Club, ClubListResponse } from '../types/club';
+import { API_CONFIG } from '../config/apiConfig';
 
 export class ClubService {
   // Get clubs by community ID
-  static async getClubsByCommunityId(communityId: number): Promise<Club[]> {
+  static async getClubsByCommunityId(communityId: string): Promise<Club[]> {
     try {
       console.log(`🔄 Fetching clubs for community ${communityId}...`);
-      const response = await axiosInstance.get<ClubDTO[]>(`${API_BASE_URL}/community/${communityId}`);
+      const response = await axiosInstance.get<ClubListResponse>(API_CONFIG.ENDPOINTS.CLUBS.BY_COMMUNITY(communityId));
       console.log('✅ Clubs fetched:', response.data);
       
-      return response.data.map((club, index) => this.transformClub(club, index));
+      return response.data.Items.map((club, index) => this.transformClub(club, index));
     } catch (error) {
       console.error('❌ Error fetching clubs by community:', error);
       throw new Error('Không thể tải danh sách clubs của cộng đồng');
@@ -22,10 +21,10 @@ export class ClubService {
   static async getAllPublicClubs(): Promise<Club[]> {
     try {
       console.log('🔄 Fetching all public clubs...');
-      const response = await axiosInstance.get<ClubDTO[]>(`${API_BASE_URL}/public`);
+      const response = await axiosInstance.get<ClubListResponse>(API_CONFIG.ENDPOINTS.CLUBS.PUBLIC);
       console.log('✅ Public clubs fetched:', response.data);
       
-      return response.data.map((club, index) => this.transformClub(club, index));
+      return response.data.Items.map((club, index) => this.transformClub(club, index));
     } catch (error) {
       console.error('❌ Error fetching public clubs:', error);
       throw new Error('Không thể tải danh sách clubs công khai');
@@ -36,10 +35,10 @@ export class ClubService {
   static async getAllPrivateClubs(): Promise<Club[]> {
     try {
       console.log('🔄 Fetching all private clubs...');
-      const response = await axiosInstance.get<ClubDTO[]>(`${API_BASE_URL}/private`);
+      const response = await axiosInstance.get<ClubListResponse>(API_CONFIG.ENDPOINTS.CLUBS.PRIVATE);
       console.log('✅ Private clubs fetched:', response.data);
       
-      return response.data.map((club, index) => this.transformClub(club, index));
+      return response.data.Items.map((club, index) => this.transformClub(club, index));
     } catch (error) {
       console.error('❌ Error fetching private clubs:', error);
       throw new Error('Không thể tải danh sách clubs riêng tư');
@@ -47,13 +46,13 @@ export class ClubService {
   }
 
   // Get club by ID
-  static async getClubById(id: number): Promise<Club> {
+  static async getClubById(id: string): Promise<Club> {
     try {
       console.log(`🔄 Fetching club ${id}...`);
-      const response = await axiosInstance.get<ClubDTO>(`${API_BASE_URL}/${id}`);
+      const response = await axiosInstance.get<ClubDTO>(API_CONFIG.ENDPOINTS.CLUBS.BY_ID(id));
       console.log('✅ Club fetched:', response.data);
       
-      return this.transformClub(response.data, id);
+      return this.transformClub(response.data, parseInt(id));
     } catch (error) {
       console.error(`❌ Error fetching club ${id}:`, error);
       throw new Error('Không thể tải thông tin club');
@@ -61,10 +60,20 @@ export class ClubService {
   }
 
   // Create new club in community
-  static async createClub(communityId: number, creatorId: number, clubData: Partial<ClubDTO>): Promise<Club> {
+  static async createClub(communityId: string, clubData: {
+    name: string;
+    description?: string;
+    isPublic?: boolean;
+    membersCount?: number;
+  }): Promise<Club> {
     try {
       console.log(`🔄 Creating club in community ${communityId}...`, clubData);
-      const response = await axiosInstance.post<ClubDTO>(`${API_BASE_URL}/community/${communityId}/user/${creatorId}`, clubData);
+      const response = await axiosInstance.post<ClubDTO>(API_CONFIG.ENDPOINTS.CLUBS.BASE, {
+        CommunityId: communityId,
+        Name: clubData.name,
+        Description: clubData.description,
+        IsPublic: clubData.isPublic ?? true
+      });
       console.log('✅ Club created:', response.data);
       
       return this.transformClub(response.data, 0);
@@ -75,13 +84,13 @@ export class ClubService {
   }
 
   // Update club
-  static async updateClub(id: number, clubData: Partial<ClubDTO>): Promise<Club> {
+  static async updateClub(id: string, clubData: Partial<ClubDTO>): Promise<Club> {
     try {
       console.log(`🔄 Updating club ${id}...`, clubData);
-      const response = await axiosInstance.patch<ClubDTO>(`${API_BASE_URL}/${id}`, clubData);
+      const response = await axiosInstance.patch<ClubDTO>(API_CONFIG.ENDPOINTS.CLUBS.BY_ID(id), clubData);
       console.log('✅ Club updated:', response.data);
       
-      return this.transformClub(response.data, id);
+      return this.transformClub(response.data, parseInt(id));
     } catch (error) {
       console.error(`❌ Error updating club ${id}:`, error);
       throw new Error('Không thể cập nhật club');
@@ -89,10 +98,10 @@ export class ClubService {
   }
 
   // Delete club
-  static async deleteClub(id: number): Promise<void> {
+  static async deleteClub(id: string): Promise<void> {
     try {
       console.log(`🔄 Deleting club ${id}...`);
-      await axiosInstance.delete(`${API_BASE_URL}/${id}`);
+      await axiosInstance.delete(API_CONFIG.ENDPOINTS.CLUBS.BY_ID(id));
       console.log('✅ Club deleted');
     } catch (error) {
       console.error(`❌ Error deleting club ${id}:`, error);
@@ -101,10 +110,10 @@ export class ClubService {
   }
 
   // Join club
-  static async joinClub(clubId: number, userId: number): Promise<ClubMemberDTO> {
+  static async joinClub(clubId: string): Promise<void> {
     try {
       console.log(`🔄 Joining club ${clubId}...`);
-      const response = await axiosInstance.post<ClubMemberDTO>(`/api/club-members/${clubId}/join`, { userId });
+      const response = await axiosInstance.post(`/api/Clubs/${clubId}/join`, {});
       console.log('✅ Joined club:', response.data);
       
       return response.data;
@@ -115,7 +124,7 @@ export class ClubService {
   }
 
   // Kick club member
-  static async kickClubMember(clubId: number, targetUserId: number, adminId: number): Promise<void> {
+  static async kickClubMember(clubId: string, targetUserId: number, adminId: number): Promise<void> {
     try {
       console.log(`🔄 Kicking member ${targetUserId} from club ${clubId}...`);
       await axiosInstance.delete(`/api/club-members/${clubId}/members/${targetUserId}?adminId=${adminId}`);
@@ -129,19 +138,20 @@ export class ClubService {
   // Transform backend ClubDTO to frontend Club
   private static transformClub(club: ClubDTO, id: number): Club {
     return {
-      id: id,
-      name: club.name,
-      description: club.description,
-      isPublic: club.isPublic,
-      membersCount: club.membersCount,
+      id: club.Id, // Keep as string GUID for frontend
+      name: club.Name,
+      description: club.Description || '',
+      isPublic: club.IsPublic,
+      membersCount: club.MembersCount,
       // Add frontend-specific properties
-      avatar: this.getClubAvatar(club.name),
+      communityId: club.CommunityId, // Keep as string GUID
+      avatar: this.getClubAvatar(club.Name),
       color: this.getClubColor(id),
-      verified: club.membersCount > 50, // Auto-verify clubs with 50+ members
-      trending: club.membersCount > 100, // Trending if 100+ members
-      category: this.getClubCategory(club.name, club.description),
+      verified: club.MembersCount > 50, // Auto-verify clubs with 50+ members
+      trending: club.MembersCount > 100, // Trending if 100+ members
+      category: this.getClubCategory(club.Name, club.Description || ''),
       createdAt: new Date().toISOString().split('T')[0], // Default to today
-      isJoined: false, // Default to not joined
+      isJoined: club.IsMember || false,
     };
   }
 

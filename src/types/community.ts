@@ -1,14 +1,19 @@
 // Community types based on backend CommunityDTO
 export interface CommunityDTO {
-  id: number;
-  name: string;
-  description: string;
-  school: string;
-  isPublic: boolean;
-  membersCount: number;
-  clubCount: number;
-  eventCount: number;
-  gameDTO: GameDTO[];
+  Id: string;
+  Name: string;
+  Description?: string;
+  School?: string;
+  IsPublic: boolean;
+  MembersCount: number;
+  ClubCount?: number;
+  EventCount?: number;
+  GameDTO?: GameDTO[];
+  OwnerId?: string;
+  IsMember?: boolean;
+  IsOwner?: boolean;
+  CreatedAtUtc?: string;
+  UpdatedAtUtc?: string;
 }
 
 export interface GameDTO {
@@ -18,7 +23,7 @@ export interface GameDTO {
 
 // Frontend Community interface (extended from backend)
 export interface Community {
-  id: number;
+  id: string | number; // Can be string GUID or number
   name: string;
   description: string;
   school: string;
@@ -41,9 +46,12 @@ export interface Community {
 
 // API Response types
 export interface CommunityListResponse {
-  data: CommunityDTO[];
-  success: boolean;
-  message?: string;
+  Items: CommunityDTO[];
+  NextCursor: string | null;
+  PrevCursor: string | null;
+  Size: number;
+  Sort: string;
+  Desc: boolean;
 }
 
 export interface CommunityResponse {

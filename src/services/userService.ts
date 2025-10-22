@@ -1,4 +1,5 @@
 import axiosInstance, { authAxiosInstance } from "./axiosInstance";
+import { API_CONFIG } from "../config/apiConfig";
 
 export type LoginPayload = {
   userNameOrEmail: string;
@@ -37,8 +38,8 @@ export type RegisterResponse = {
 
 const userService = {
   login(payload: LoginPayload) {
-    return authAxiosInstance
-      .post<LoginResponse>("/api/Auth/login", payload)
+    return axiosInstance
+      .post<LoginResponse>(API_CONFIG.ENDPOINTS.AUTH.LOGIN, payload)
       .then((res) => {
         // Map response từ backend (PascalCase) sang camelCase
         return {
@@ -50,8 +51,8 @@ const userService = {
   },
 
   googleLogin(payload: GoogleLoginPayload) {
-    return authAxiosInstance
-      .post<LoginResponse>("/api/GoogleAuth/login", payload)
+    return axiosInstance
+      .post<LoginResponse>(API_CONFIG.ENDPOINTS.AUTH.GOOGLE_LOGIN, payload)
       .then((res) => {
         return {
           accessToken: res.data.AccessToken,
@@ -62,8 +63,8 @@ const userService = {
   },
 
   register(payload: RegisterPayload) {
-    return authAxiosInstance
-      .post<RegisterResponse>("/api/Auth/user-register", payload)
+    return axiosInstance
+      .post<RegisterResponse>(API_CONFIG.ENDPOINTS.AUTH.REGISTER, payload)
       .then((res) => {
         // Map response từ backend
         return {
@@ -77,11 +78,11 @@ const userService = {
   },
 
   getProfile() {
-    return authAxiosInstance.get("/api/Auth/me").then((res) => res.data);
+    return authAxiosInstance.get(API_CONFIG.ENDPOINTS.AUTH.PROFILE).then((res) => res.data);
   },
 
   logout() {
-    return authAxiosInstance.post("/api/Auth/revoke").then((res) => res.data);
+    return authAxiosInstance.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT).then((res) => res.data);
   },
 };
 

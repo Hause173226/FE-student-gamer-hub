@@ -1,18 +1,38 @@
-import axiosInstance from './axiosInstance';
-import { CommunityDTO, Community, CommunityListResponse, CommunityResponse } from '../types/community';
-
-const API_BASE_URL = '/api/community';
+import axiosInstance, { authAxiosInstance } from './axiosInstance';
+import { CommunityDTO, Community } from '../types/community';
+import { API_CONFIG } from '../config/apiConfig';
 
 export class CommunityService {
-  // Get all communities
-  static async getAllCommunities(): Promise<Community[]> {
+  // Get all communities with search and pagination
+  static async getAllCommunities(options?: {
+    query?: string;
+    offset?: number;
+    limit?: number;
+    orderBy?: 'trending' | 'newest';
+  }): Promise<Community[]> {
     try {
-      console.log('🔄 Fetching all communities...');
-      const response = await axiosInstance.get<CommunityDTO[]>(API_BASE_URL);
+      console.log('🔄 Fetching all communities...', options);
+      
+      const params = new URLSearchParams();
+      if (options?.query) params.append('query', options.query);
+      if (options?.offset) params.append('offset', options.offset.toString());
+      if (options?.limit) params.append('limit', options.limit.toString());
+      if (options?.orderBy) params.append('orderBy', options.orderBy);
+      
+      const url = params.toString() ? `${API_CONFIG.ENDPOINTS.COMMUNITIES.BASE}?${params}` : API_CONFIG.ENDPOINTS.COMMUNITIES.BASE;
+      const response = await axiosInstance.get<{
+        Items: CommunityDTO[];
+        NextCursor: string | null;
+        PrevCursor: string | null;
+        Size: number;
+        Sort: string;
+        Desc: boolean;
+      }>(url);
+      
       console.log('✅ Communities fetched:', response.data);
       
       // Transform backend data to frontend format
-      return response.data.map(community => this.transformCommunity(community));
+      return response.data.Items.map(community => this.transformCommunity(community));
     } catch (error) {
       console.error('❌ Error fetching communities:', error);
       throw new Error('Không thể tải danh sách cộng đồng');
@@ -20,10 +40,10 @@ export class CommunityService {
   }
 
   // Get community by ID
-  static async getCommunityById(id: number): Promise<Community> {
+  static async getCommunityById(id: string): Promise<Community> {
     try {
       console.log(`🔄 Fetching community ${id}...`);
-      const response = await axiosInstance.get<CommunityDTO>(`${API_BASE_URL}/${id}`);
+      const response = await axiosInstance.get<CommunityDTO>(API_CONFIG.ENDPOINTS.COMMUNITIES.BY_ID(id));
       console.log('✅ Community fetched:', response.data);
       
       return this.transformCommunity(response.data);
@@ -34,10 +54,15 @@ export class CommunityService {
   }
 
   // Create new community
-  static async createCommunity(communityData: Partial<CommunityDTO>): Promise<Community> {
+  static async createCommunity(communityData: {
+    name: string;
+    description?: string;
+    school?: string;
+    isPublic?: boolean;
+  }): Promise<Community> {
     try {
       console.log('🔄 Creating community...', communityData);
-      const response = await axiosInstance.post<CommunityDTO>(API_BASE_URL, communityData);
+      const response = await axiosInstance.post<CommunityDTO>(API_CONFIG.ENDPOINTS.COMMUNITIES.BASE, communityData);
       console.log('✅ Community created:', response.data);
       
       return this.transformCommunity(response.data);
@@ -47,11 +72,30 @@ export class CommunityService {
     }
   }
 
+  // Join community
+  static async joinCommunity(communityId: string): Promise<Community> {
+    try {
+      console.log(`🔄 Joining community ${communityId}...`);
+      const response = await authAxiosInstance.post<CommunityDTO>(API_CONFIG.ENDPOINTS.COMMUNITIES.JOIN(communityId));
+      console.log('✅ Joined community:', response.data);
+      
+      return this.transformCommunity(response.data);
+    } catch (error) {
+      console.error(`❌ Error joining community ${communityId}:`, error);
+      throw new Error('Không thể tham gia cộng đồng');
+    }
+  }
+
   // Update community
-  static async updateCommunity(id: number, communityData: Partial<CommunityDTO>): Promise<Community> {
+  static async updateCommunity(id: string, communityData: {
+    name: string;
+    description?: string;
+    school?: string;
+    isPublic?: boolean;
+  }): Promise<Community> {
     try {
       console.log(`🔄 Updating community ${id}...`, communityData);
-      const response = await axiosInstance.patch<CommunityDTO>(`${API_BASE_URL}/${id}`, communityData);
+      const response = await axiosInstance.put<CommunityDTO>(API_CONFIG.ENDPOINTS.COMMUNITIES.BY_ID(id), communityData);
       console.log('✅ Community updated:', response.data);
       
       return this.transformCommunity(response.data);
@@ -62,10 +106,10 @@ export class CommunityService {
   }
 
   // Delete community
-  static async deleteCommunity(id: number): Promise<void> {
+  static async deleteCommunity(id: string): Promise<void> {
     try {
       console.log(`🔄 Deleting community ${id}...`);
-      await axiosInstance.delete(`${API_BASE_URL}/${id}`);
+      await axiosInstance.delete(API_CONFIG.ENDPOINTS.COMMUNITIES.BY_ID(id));
       console.log('✅ Community deleted');
     } catch (error) {
       console.error(`❌ Error deleting community ${id}:`, error);
@@ -76,21 +120,21 @@ export class CommunityService {
   // Transform backend CommunityDTO to frontend Community
   private static transformCommunity(community: CommunityDTO): Community {
     return {
-      id: community.id,
-      name: community.name,
-      description: community.description,
-      school: community.school,
-      isPublic: community.isPublic,
-      membersCount: community.membersCount,
-      clubCount: community.clubCount,
-      eventCount: community.eventCount,
-      games: community.gameDTO || [],
+      id: community.Id, // Keep as string GUID for frontend
+      name: community.Name,
+      description: community.Description || '',
+      school: community.School || '',
+      isPublic: community.IsPublic,
+      membersCount: community.MembersCount,
+      clubCount: community.ClubCount || 0,
+      eventCount: community.EventCount || 0,
+      games: community.GameDTO || [],
       // Add frontend-specific properties
-      avatar: this.getCommunityAvatar(community.name),
-      color: this.getCommunityColor(community.id),
-      verified: community.membersCount > 100, // Auto-verify communities with 100+ members
-      trending: community.membersCount > 500, // Trending if 500+ members
-      category: this.getCommunityCategory(community.name, community.description),
+      avatar: this.getCommunityAvatar(community.Name),
+      color: this.getCommunityColor(community.Id),
+      verified: community.MembersCount > 100, // Auto-verify communities with 100+ members
+      trending: community.MembersCount > 500, // Trending if 500+ members
+      category: this.getCommunityCategory(community.Name, community.Description || ''),
       createdAt: new Date().toISOString().split('T')[0], // Default to today
     };
   }
@@ -108,7 +152,7 @@ export class CommunityService {
   }
 
   // Get community color based on ID
-  private static getCommunityColor(id: number): string {
+  private static getCommunityColor(id: string): string {
     const colors = [
       'from-blue-500 to-indigo-600',
       'from-emerald-500 to-teal-600',
@@ -119,7 +163,12 @@ export class CommunityService {
       'from-green-500 to-emerald-600',
       'from-pink-500 to-rose-600',
     ];
-    return colors[id % colors.length];
+    // Use hash of string ID to get consistent color
+    const hash = id.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    return colors[Math.abs(hash) % colors.length];
   }
 
   // Get community category based on name/description

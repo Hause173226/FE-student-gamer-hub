@@ -10,6 +10,7 @@ import { TestLogin } from "../pages/TestLogin";
 import { Profile } from "../pages/Profile";
 import { Events } from "../pages/Events";
 import { Rooms } from "../pages/Rooms";
+import ClubDetail from "../pages/ClubDetail";
 import Friends from "../pages/Friends";
 import { ViewType } from "../types";
 
@@ -31,6 +32,7 @@ export const AuthenticatedApp: React.FC = () => {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/communities" element={<Communities />} />
         <Route path="/communities/:communityId" element={<CommunityDetail />} />
+        <Route path="/clubs/:clubId" element={<ClubDetail />} />
         <Route path="/friends" element={<Friends />} />
         <Route path="/rooms" element={<Rooms />} />
         <Route path="/chat-groups" element={<ChatGroups />} />

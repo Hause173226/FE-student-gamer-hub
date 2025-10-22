@@ -32,11 +32,11 @@ export function CommunityDetail() {
     setLoading(true);
     try {
       // Load community data
-      const communityData = await CommunityService.getCommunityById(Number(communityId));
+      const communityData = await CommunityService.getCommunityById(communityId);
       setCommunity(communityData);
       
       // Load clubs data for this specific community
-      const clubsData = await ClubService.getClubsByCommunityId(Number(communityId));
+      const clubsData = await ClubService.getClubsByCommunityId(communityId);
       setClubs(clubsData);
       
       console.log('✅ Loaded community:', communityData);
@@ -49,9 +49,9 @@ export function CommunityDetail() {
     }
   };
 
-  const handleJoinClub = async (clubId: number) => {
+  const handleJoinClub = async (clubId: string | number) => {
     try {
-      await ClubService.joinClub(clubId, 1); // Using userId = 1 for now
+      await ClubService.joinClub(clubId.toString()); // Convert to string for API
       setClubs(prev => prev.map(club => 
         club.id === clubId 
           ? { ...club, isJoined: true, membersCount: club.membersCount + 1 }
@@ -77,8 +77,7 @@ export function CommunityDetail() {
 
     try {
       const newClub = await ClubService.createClub(
-        Number(communityId), 
-        1, // creatorId = 1 for now
+        communityId, 
         {
           name: createForm.name,
           description: createForm.description,
@@ -241,7 +240,7 @@ export function CommunityDetail() {
           </div>
         ) : (
           <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredClubs.map((club, index) => (
+            {filteredClubs.map((club) => (
               <div
                 key={club.id}
                 className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-indigo-500 transition-all"

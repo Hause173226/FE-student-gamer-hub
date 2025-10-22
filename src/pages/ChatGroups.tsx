@@ -1,37 +1,38 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Users, MessageCircle, Loader2 } from 'lucide-react';
-import { getJoinedGroups, MockGroup } from '../data/mockData';
+import { Club } from '../types/club';
+import ClubService from '../services/clubService';
 import toast from 'react-hot-toast';
 
 export function ChatGroups() {
   const navigate = useNavigate();
-  const [joinedGroups, setJoinedGroups] = useState<MockGroup[]>([]);
+  const [joinedClubs, setJoinedClubs] = useState<Club[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadJoinedGroups();
+    loadJoinedClubs();
   }, []);
 
-  const loadJoinedGroups = async () => {
+  const loadJoinedClubs = async () => {
     setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const groups = getJoinedGroups();
-      setJoinedGroups(groups);
-      console.log('✅ Loaded joined groups:', groups);
+      // Get all public clubs (for now, we'll implement proper joined clubs API later)
+      const clubs = await ClubService.getAllPublicClubs();
+      // Filter only joined clubs
+      const joined = clubs.filter(club => club.isJoined);
+      setJoinedClubs(joined);
+      console.log('✅ Loaded joined clubs:', joined);
     } catch (error) {
-      console.error('❌ Error loading joined groups:', error);
-      toast.error('Không thể tải danh sách nhóm chat');
+      console.error('❌ Error loading joined clubs:', error);
+      toast.error('Không thể tải danh sách clubs đã tham gia');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGroupClick = (groupId: number) => {
-    navigate(`/chat/${groupId}`);
+  const handleClubClick = (clubId: number) => {
+    navigate(`/communities/${joinedClubs.find(c => c.id === clubId)?.communityId}/clubs/${clubId}`);
   };
 
   const getGroupColor = (index: number) => {
@@ -94,15 +95,15 @@ export function ChatGroups() {
         {/* Groups List */}
         <div className="mb-4">
           <h2 className="text-xl font-bold text-white mb-4">
-            Nhóm chat của bạn ({joinedGroups.length})
+            Clubs đã tham gia ({joinedClubs.length})
           </h2>
         </div>
 
-        {joinedGroups.length === 0 ? (
+        {joinedClubs.length === 0 ? (
           <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
             <MessageCircle className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400 text-lg">Bạn chưa tham gia nhóm chat nào</p>
-            <p className="text-gray-500 text-sm mt-2">Hãy tham gia cộng đồng để bắt đầu chat!</p>
+            <p className="text-gray-400 text-lg">Bạn chưa tham gia club nào</p>
+            <p className="text-gray-500 text-sm mt-2">Hãy tham gia cộng đồng để bắt đầu!</p>
             <button
               onClick={() => navigate('/communities')}
               className="mt-4 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
@@ -112,15 +113,15 @@ export function ChatGroups() {
           </div>
         ) : (
           <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {joinedGroups.map((group, index) => (
+            {joinedClubs.map((club, index) => (
               <div
-                key={group.id}
-                onClick={() => handleGroupClick(group.id)}
+                key={club.id}
+                onClick={() => handleClubClick(club.id)}
                 className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-indigo-500 transition-all cursor-pointer group"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className={`w-16 h-16 bg-gradient-to-r ${getGroupColor(index)} rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform`}>
-                    <span className="text-2xl">{group.avatar}</span>
+                    <span className="text-2xl">{club.avatar}</span>
                   </div>
                   <div className="flex items-center space-x-2 text-emerald-400">
                     <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
@@ -129,20 +130,20 @@ export function ChatGroups() {
                 </div>
 
                 <h3 className="text-lg font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">
-                  {group.name}
+                  {club.name}
                 </h3>
                 
                 <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                  {group.description}
+                  {club.description}
                 </p>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-700">
                   <div className="flex items-center space-x-2 text-gray-400 text-sm">
                     <Users className="w-4 h-4" />
-                    <span>{group.membersCount} thành viên</span>
+                    <span>{club.membersCount} thành viên</span>
                   </div>
                   <div className="text-indigo-400 text-sm font-medium group-hover:text-indigo-300 transition-colors">
-                    Vào chat →
+                    Vào club →
                   </div>
                 </div>
               </div>
