@@ -8,17 +8,14 @@ import {
   X,
   AlertCircle,
   Search,
-  Video,
-  Mic,
-  Monitor,
   ChevronRight,
   ChevronDown,
+  ChevronLeft,
 } from "lucide-react";
 import clsx from "clsx";
 import { MENU_ITEMS } from "../constants";
 import { useAuth } from "../contexts/AuthContext";
 import { GlobalSearchModal } from "./GlobalSearchModal";
-import { VideoCall } from "./VideoCall";
 import { MembershipService } from "../services/membershipService";
 import { SidebarClub } from "../types/membership";
 
@@ -26,21 +23,24 @@ interface SidebarProps {
   currentView: string;
   onViewChange: (view: string) => void;
   isOpen: boolean;
+  isCollapsed: boolean;
   onToggle: () => void;
+  onCollapseToggle: () => void;
 }
 
 export function Sidebar({
   currentView,
   onViewChange,
   isOpen,
+  isCollapsed,
   onToggle,
+  onCollapseToggle,
 }: SidebarProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
-  const [showVideoCall, setShowVideoCall] = useState<boolean>(false);
   
   // Clubs state
   const [clubs, setClubs] = useState<SidebarClub[]>([]);
@@ -108,242 +108,109 @@ export function Sidebar({
     }
   };
 
-  // Test functions
-  const testCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.autoplay = true;
-      video.muted = true;
-      video.style.width = '300px';
-      video.style.height = '200px';
-      video.style.border = '2px solid green';
-      video.style.position = 'fixed';
-      video.style.top = '80px';
-      video.style.left = '20px';
-      video.style.zIndex = '9999';
-      video.style.backgroundColor = 'black';
-      video.style.borderRadius = '8px';
-      
-      const label = document.createElement('div');
-      label.textContent = 'Test Camera - Click to close';
-      label.style.position = 'absolute';
-      label.style.top = '5px';
-      label.style.left = '5px';
-      label.style.background = 'rgba(0, 0, 0, 0.7)';
-      label.style.color = 'white';
-      label.style.padding = '2px 6px';
-      label.style.borderRadius = '4px';
-      label.style.fontSize = '12px';
-      label.style.fontWeight = 'bold';
-      label.style.cursor = 'pointer';
-      
-      video.appendChild(label);
-      document.body.appendChild(video);
-      
-      const closeTest = () => {
-        stream.getTracks().forEach(track => track.stop());
-        document.body.removeChild(video);
-      };
-      
-      label.onclick = closeTest;
-      video.onclick = closeTest;
-    } catch (error) {
-      console.error('Camera test error:', error);
-      alert('Không thể truy cập camera: ' + error);
-    }
-  };
-
-  const testMic = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const analyser = audioContext.createAnalyser();
-      const microphone = audioContext.createMediaStreamSource(stream);
-      
-      microphone.connect(analyser);
-      analyser.fftSize = 256;
-      
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      
-      const indicator = document.createElement('div');
-      indicator.style.position = 'fixed';
-      indicator.style.top = '50%';
-      indicator.style.left = '50%';
-      indicator.style.transform = 'translate(-50%, -50%)';
-      indicator.style.zIndex = '9999';
-      indicator.style.background = 'rgba(0, 0, 0, 0.8)';
-      indicator.style.color = 'white';
-      indicator.style.padding = '20px';
-      indicator.style.borderRadius = '8px';
-      indicator.style.textAlign = 'center';
-      indicator.innerHTML = `
-        <div style="font-size: 18px; margin-bottom: 10px;">🎤 Test Microphone</div>
-        <div id="mic-level" style="font-size: 24px; color: #10b981;">●</div>
-        <div style="font-size: 14px; margin-top: 10px;">Click to close</div>
-      `;
-      
-      document.body.appendChild(indicator);
-      
-      const detectAudio = () => {
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          sum += dataArray[i];
-        }
-        const average = sum / bufferLength;
-        
-        const levelEl = document.getElementById('mic-level');
-        if (levelEl) {
-          if (average > 30) {
-            levelEl.style.color = '#ef4444';
-            levelEl.textContent = '🔴 SPEAKING';
-          } else {
-            levelEl.style.color = '#10b981';
-            levelEl.textContent = '● Listening';
-          }
-        }
-        
-        requestAnimationFrame(detectAudio);
-      };
-      
-      detectAudio();
-      
-      const closeTest = () => {
-        stream.getTracks().forEach(track => track.stop());
-        audioContext.close();
-        document.body.removeChild(indicator);
-      };
-      
-      indicator.onclick = closeTest;
-    } catch (error) {
-      console.error('Mic test error:', error);
-      alert('Không thể truy cập microphone: ' + error);
-    }
-  };
-
-  const testScreenShare = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ 
-        video: { mediaSource: 'screen' } 
-      } as any);
-      
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.autoplay = true;
-      video.muted = true;
-      video.style.width = '80vw';
-      video.style.height = '80vh';
-      video.style.border = '2px solid blue';
-      video.style.position = 'fixed';
-      video.style.top = '50%';
-      video.style.left = '50%';
-      video.style.transform = 'translate(-50%, -50%)';
-      video.style.zIndex = '9999';
-      video.style.backgroundColor = 'black';
-      video.style.borderRadius = '8px';
-      
-      const label = document.createElement('div');
-      label.textContent = 'Test Screen Share - Click to close';
-      label.style.position = 'absolute';
-      label.style.top = '10px';
-      label.style.left = '10px';
-      label.style.background = 'rgba(0, 0, 0, 0.8)';
-      label.style.color = 'white';
-      label.style.padding = '8px 12px';
-      label.style.borderRadius = '4px';
-      label.style.fontSize = '14px';
-      label.style.fontWeight = 'bold';
-      label.style.cursor = 'pointer';
-      
-      video.appendChild(label);
-      document.body.appendChild(video);
-      
-      const closeTest = () => {
-        stream.getTracks().forEach(track => track.stop());
-        document.body.removeChild(video);
-      };
-      
-      label.onclick = closeTest;
-      video.onclick = closeTest;
-    } catch (error) {
-      console.error('Screen share test error:', error);
-      alert('Không thể chia sẻ màn hình: ' + error);
-    }
-  };
-
   return (
     <>
       <div
         className={clsx(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-gray-800 border-r border-gray-700 transform transition-transform duration-300",
+          "fixed inset-y-0 left-0 z-40 bg-gray-800 border-r border-gray-700 transform transition-all duration-300",
+          isCollapsed ? "w-16" : "w-64",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <Trophy className="w-5 h-5 text-white" />
+        <div className={clsx("border-b border-gray-700", isCollapsed ? "p-3" : "p-4")}>
+          {isCollapsed ? (
+            <div className="flex flex-col items-center space-y-2">
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center w-8 h-8">
+                <Trophy className="w-4 h-4 text-white" />
+              </div>
+              <button
+                onClick={onCollapseToggle}
+                className="hidden lg:block p-1 rounded-lg hover:bg-gray-700 transition-colors"
+                aria-label="Mở rộng sidebar"
+              >
+                <ChevronRight className="w-4 h-4 text-white" />
+              </button>
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-white">SGH</h1>
-              <p className="text-xs text-gray-400">Student Gamer Hub</p>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center w-8 h-8">
+                  <Trophy className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-bold text-white">SGH</h1>
+                  <p className="text-xs text-gray-400">Student Gamer Hub</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={onCollapseToggle}
+                  className="hidden lg:block p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                  aria-label="Thu gọn sidebar"
+                >
+                  <ChevronLeft className="w-4 h-4 text-white" />
+                </button>
+                <button
+                  onClick={onToggle}
+                  className="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                  aria-label="Đóng menu"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
             </div>
-          </div>
-          <button
-            onClick={onToggle}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-700 transition-colors"
-            aria-label="Đóng menu"
-          >
-            <X className="w-5 h-5 text-white" />
-          </button>
+          )}
         </div>
 
         {/* User Profile Card */}
-        <div className="p-4 border-b border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full flex items-center justify-center">
-              <span className="text-sm font-bold text-white">
+        <div className={clsx("border-b border-gray-700", isCollapsed ? "p-3" : "p-4")}>
+          <div className={clsx("flex items-center", isCollapsed ? "justify-center" : "space-x-3")}>
+            <div className={clsx("bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full flex items-center justify-center",
+              isCollapsed ? "w-8 h-8" : "w-10 h-10"
+            )}>
+              <span className={clsx("font-bold text-white", isCollapsed ? "text-xs" : "text-sm")}>
                 {user?.FullName?.charAt(0)?.toUpperCase() ||
                   user?.UserName?.charAt(0)?.toUpperCase() ||
                   "U"}
               </span>
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-medium text-white truncate">
-                {user?.FullName || user?.UserName || "User"}
-              </h3>
-              <p className="text-xs text-gray-400 truncate">
-                {user?.University || user?.Email || "Student"}
-              </p>
-              <div className="flex items-center space-x-1 mt-1">
-                <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                <span className="text-xs text-yellow-400">
-                  Level {user?.Level || 1}
-                </span>
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-medium text-white truncate">
+                  {user?.FullName || user?.UserName || "User"}
+                </h3>
+                <p className="text-xs text-gray-400 truncate">
+                  {user?.University || user?.Email || "Student"}
+                </p>
+                <div className="flex items-center space-x-1 mt-1">
+                  <Star className="w-3 h-3 text-yellow-400 fill-current" />
+                  <span className="text-xs text-yellow-400">
+                    Level {user?.Level || 1}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
         {/* Global Search */}
-        <div className="p-4 border-b border-gray-700">
-          <button
-            onClick={() => setShowSearchModal(true)}
-            className="w-full flex items-center space-x-3 px-3 py-2 bg-gray-700/50 hover:bg-gray-700 rounded-lg transition-colors group"
-          >
-            <Search className="w-4 h-4 text-gray-400 group-hover:text-indigo-400 transition-colors" />
-            <span className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
-              Tìm kiếm bạn bè...
-            </span>
-          </button>
-        </div>
+        {!isCollapsed && (
+          <div className="p-4 border-b border-gray-700">
+            <button
+              onClick={() => setShowSearchModal(true)}
+              className="w-full flex items-center space-x-3 px-3 py-2 bg-gray-700/50 hover:bg-gray-700 rounded-lg transition-colors group"
+            >
+              <Search className="w-4 h-4 text-gray-400 group-hover:text-indigo-400 transition-colors" />
+              <span className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors">
+                Tìm kiếm bạn bè...
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Navigation Menu */}
-        <nav className="flex-1 p-4 overflow-y-auto">
+        <nav className={clsx("flex-1 overflow-y-auto", isCollapsed ? "p-2" : "p-4")}>
           <ul className="space-y-2">
             {MENU_ITEMS.map((item) => {
               const Icon = item.icon;
@@ -354,25 +221,31 @@ export function Sidebar({
                   <button
                     onClick={() => handleMenuClick(item.id)}
                     className={clsx(
-                      "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
+                      "w-full flex items-center rounded-lg text-left transition-colors",
+                      isCollapsed ? "justify-center p-3" : "space-x-3 px-3 py-2",
                       currentView === item.id
                         ? "bg-indigo-600 text-white"
                         : "text-gray-300 hover:bg-gray-700 hover:text-white"
                     )}
+                    title={isCollapsed ? item.label : undefined}
                   >
-                    <Icon className="w-5 h-5" />
-                    <span className="text-sm font-medium flex-1">{item.label}</span>
-                    {isRooms && (
-                      showClubs ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )
+                    <Icon className={clsx("text-white", isCollapsed ? "w-6 h-6" : "w-5 h-5")} />
+                    {!isCollapsed && (
+                      <>
+                        <span className="text-sm font-medium flex-1">{item.label}</span>
+                        {isRooms && (
+                          showClubs ? (
+                            <ChevronDown className="w-4 h-4" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4" />
+                          )
+                        )}
+                      </>
                     )}
                   </button>
                   
                   {/* Clubs list for rooms */}
-                  {isRooms && showClubs && (
+                  {isRooms && showClubs && !isCollapsed && (
                     <div className="ml-6 mt-2 space-y-1">
                       {loadingClubs ? (
                         <div className="text-xs text-gray-400 px-3 py-2">
@@ -407,54 +280,11 @@ export function Sidebar({
               );
             })}
           </ul>
-
-          {/* Test Section */}
-          <div className="mt-6 pt-4 border-t border-gray-700">
-            <div className="text-xs text-gray-400 mb-3 px-3">🧪 Test Tools</div>
-            <ul className="space-y-2">
-              <li>
-                <button
-                  onClick={testCamera}
-                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-300 hover:bg-gray-700 hover:text-white"
-                >
-                  <Video className="w-5 h-5" />
-                  <span className="text-sm font-medium">Test Camera</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={testMic}
-                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-300 hover:bg-gray-700 hover:text-white"
-                >
-                  <Mic className="w-5 h-5" />
-                  <span className="text-sm font-medium">Test Mic</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={testScreenShare}
-                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-300 hover:bg-gray-700 hover:text-white"
-                >
-                  <Monitor className="w-5 h-5" />
-                  <span className="text-sm font-medium">Test Screen Share</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => setShowVideoCall(true)}
-                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-300 hover:bg-gray-700 hover:text-white"
-                >
-                  <Video className="w-5 h-5" />
-                  <span className="text-sm font-medium">Test Video Call</span>
-                </button>
-              </li>
-            </ul>
-          </div>
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-700">
-          <div className="flex space-x-2">
+        <div className={clsx("border-t border-gray-700", isCollapsed ? "p-2" : "p-4")}>
+          <div className={clsx("flex", isCollapsed ? "flex-col space-y-2" : "space-x-2")}>
             <button
               onClick={() => {
                 onViewChange("settings");
@@ -462,18 +292,25 @@ export function Sidebar({
                   onToggle();
                 }
               }}
-              className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              className={clsx(
+                "flex items-center justify-center text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors",
+                isCollapsed ? "p-3" : "flex-1 space-x-2 px-3 py-2"
+              )}
+              title={isCollapsed ? "Cài đặt" : undefined}
             >
-              <Settings className="w-4 h-4" />
-              <span className="text-sm">Cài đặt</span>
+              <Settings className={clsx("text-white", isCollapsed ? "w-6 h-6" : "w-4 h-4")} />
+              {!isCollapsed && <span className="text-sm">Cài đặt</span>}
             </button>
             <button
               onClick={() => setShowLogoutModal(true)}
-              className="flex items-center justify-center px-3 py-2 text-gray-300 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors"
-              title="Đăng xuất"
+              className={clsx(
+                "flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors",
+                isCollapsed ? "p-3" : "px-3 py-2"
+              )}
+              title={isCollapsed ? "Đăng xuất" : undefined}
               aria-label="Đăng xuất"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className={clsx("text-white", isCollapsed ? "w-6 h-6" : "w-4 h-4")} />
             </button>
           </div>
         </div>
@@ -491,15 +328,6 @@ export function Sidebar({
       {/* Global Search Modal */}
       {showSearchModal && (
         <GlobalSearchModal onClose={() => setShowSearchModal(false)} />
-      )}
-
-      {/* Video Call Test Modal */}
-      {showVideoCall && (
-        <VideoCall
-          roomId="test-room"
-          userId={user?.UserName || "test-user"}
-          onEndCall={() => setShowVideoCall(false)}
-        />
       )}
 
       {/* Logout Confirmation Modal */}
