@@ -9,7 +9,11 @@ interface MobileNavProps {
   onMenuToggle: () => void;
 }
 
-export function MobileNav({ currentView, onViewChange, onMenuToggle }: MobileNavProps) {
+export function MobileNav({
+                            currentView,
+                            onViewChange = () => {}, // <--- THÊM GIÁ TRỊ MẶC ĐỊNH
+                            onMenuToggle
+                          }: MobileNavProps) {
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-30">
       <div className="flex items-center justify-around px-2 py-2">

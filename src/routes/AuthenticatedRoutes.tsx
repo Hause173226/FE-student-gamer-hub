@@ -7,7 +7,6 @@ import { Events } from "../pages/Events";
 import { Rooms } from "../pages/Rooms";
 import Friends from "../pages/Friends"; // ✅ Import component Friends
 import { ViewType } from "../types";
-
 export const AuthenticatedApp: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>("dashboard");
 
@@ -25,6 +24,7 @@ export const AuthenticatedApp: React.FC = () => {
         return <Events />;
       case "profile":
         return <Profile />;
+
       default:
         return <Dashboard />;
     }

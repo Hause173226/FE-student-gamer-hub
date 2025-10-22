@@ -21,8 +21,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({
-  currentView,
-  onViewChange,
+  currentView,onViewChange = () => {},
   isOpen,
   onToggle,
 }: SidebarProps) {
