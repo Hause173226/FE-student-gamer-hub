@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Trophy,
@@ -11,6 +11,7 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronLeft,
+  Video,
 } from "lucide-react";
 import clsx from "clsx";
 import { MENU_ITEMS } from "../constants";
@@ -18,6 +19,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { GlobalSearchModal } from "./GlobalSearchModal";
 import { MembershipService } from "../services/membershipService";
 import { SidebarClub } from "../types/membership";
+import MediaTestTool from "./MediaTestTool";
 
 interface SidebarProps {
   currentView: string;
@@ -38,9 +40,21 @@ export function Sidebar({
 }: SidebarProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  
+  // Debug user data
+  useEffect(() => {
+    if (user) {
+      console.log('👤 Sidebar User Data:', user);
+      console.log('📧 User Email:', user.email);
+      console.log('👤 User Name:', user.fullName || user.userName);
+      console.log('🏫 University:', user.university);
+      console.log('⭐ Level:', user.level);
+    }
+  }, [user]);
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
+  const [showMediaTest, setShowMediaTest] = useState<boolean>(false);
   
   // Clubs state
   const [clubs, setClubs] = useState<SidebarClub[]>([]);
@@ -170,23 +184,24 @@ export function Sidebar({
               isCollapsed ? "w-8 h-8" : "w-10 h-10"
             )}>
               <span className={clsx("font-bold text-white", isCollapsed ? "text-xs" : "text-sm")}>
-                {user?.FullName?.charAt(0)?.toUpperCase() ||
-                  user?.UserName?.charAt(0)?.toUpperCase() ||
+                {user?.fullName?.charAt(0)?.toUpperCase() ||
+                  user?.userName?.charAt(0)?.toUpperCase() ||
+                  user?.email?.charAt(0)?.toUpperCase() ||
                   "U"}
               </span>
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-medium text-white truncate">
-                  {user?.FullName || user?.UserName || "User"}
+                  {user?.fullName || user?.userName || user?.email || "User"}
                 </h3>
                 <p className="text-xs text-gray-400 truncate">
-                  {user?.University || user?.Email || "Student"}
+                  {user?.university || user?.email || "Student"}
                 </p>
                 <div className="flex items-center space-x-1 mt-1">
                   <Star className="w-3 h-3 text-yellow-400 fill-current" />
                   <span className="text-xs text-yellow-400">
-                    Level {user?.Level || 1}
+                    Level {user?.level || 1}
                   </span>
                 </div>
               </div>
@@ -302,6 +317,18 @@ export function Sidebar({
               {!isCollapsed && <span className="text-sm">Cài đặt</span>}
             </button>
             <button
+              onClick={() => setShowMediaTest(true)}
+              className={clsx(
+                "flex items-center justify-center text-gray-300 hover:text-purple-400 hover:bg-gray-700 rounded-lg transition-colors",
+                isCollapsed ? "p-3" : "px-3 py-2"
+              )}
+              title={isCollapsed ? "Test Media" : undefined}
+              aria-label="Test Media"
+            >
+              <Video className={clsx("text-white", isCollapsed ? "w-6 h-6" : "w-4 h-4")} />
+              {!isCollapsed && <span className="text-sm">Test Media</span>}
+            </button>
+            <button
               onClick={() => setShowLogoutModal(true)}
               className={clsx(
                 "flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors",
@@ -328,6 +355,11 @@ export function Sidebar({
       {/* Global Search Modal */}
       {showSearchModal && (
         <GlobalSearchModal onClose={() => setShowSearchModal(false)} />
+      )}
+
+      {/* Media Test Tool Modal */}
+      {showMediaTest && (
+        <MediaTestTool isOpen={showMediaTest} onClose={() => setShowMediaTest(false)} />
       )}
 
       {/* Logout Confirmation Modal */}

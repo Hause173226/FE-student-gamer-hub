@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { ChatMessage } from '../services/platformGameService';
+import { API_CONFIG } from '../config/apiConfig';
 
 interface UseSimpleWebSocketProps {
   roomId: number;
@@ -16,7 +17,7 @@ export const useSimpleWebSocket = ({ roomId, username, onMessageReceived }: UseS
   useEffect(() => {
     try {
       // Simple WebSocket connection (không dùng STOMP)
-      const ws = new WebSocket(`ws://localhost:8080/ws/chat`);
+      const ws = new WebSocket(`ws://${API_CONFIG.PLATFORM_GAME_URL.replace('http://', '')}/ws/chat`);
       wsRef.current = ws;
 
       ws.onopen = () => {

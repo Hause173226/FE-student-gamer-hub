@@ -69,10 +69,10 @@ export class ClubService {
     try {
       console.log(`🔄 Creating club in community ${communityId}...`, clubData);
       const response = await axiosInstance.post<ClubDTO>(API_CONFIG.ENDPOINTS.CLUBS.BASE, {
-        CommunityId: communityId,
-        Name: clubData.name,
-        Description: clubData.description,
-        IsPublic: clubData.isPublic ?? true
+        communityId: communityId,
+        name: clubData.name,
+        description: clubData.description,
+        isPublic: clubData.isPublic ?? true
       });
       console.log('✅ Club created:', response.data);
       

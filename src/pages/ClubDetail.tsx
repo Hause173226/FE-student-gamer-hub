@@ -20,9 +20,15 @@ import { ClubService } from '../services/clubService';
 import { Room, RoomJoinPolicy } from '../types/room';
 import { Club } from '../types/club';
 import { toast } from 'react-hot-toast';
+import ChatContainer from '../components/chat/ChatContainer';
+import ChatDebug from '../components/chat/ChatDebug';
+import { useChat } from '../hooks/useChat';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ClubDetail() {
   const { clubId } = useParams<{ clubId: string }>();
+  const { user } = useAuth();
+  const { isConnected } = useChat();
   
   // State
   const [club, setClub] = useState<Club | null>(null);
@@ -228,32 +234,36 @@ export default function ClubDetail() {
             </div>
             <div className="space-y-1">
               {filteredRooms.map((room) => (
-                <button
+                <div
                   key={room.id}
-                  onClick={() => handleRoomClick(room)}
                   className={`w-full flex items-center space-x-3 px-2 py-2 rounded-md text-left transition-colors group ${
                     selectedRoom?.id === room.id
                       ? 'bg-gray-600 text-white'
                       : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                   }`}
                 >
-                  <div className="flex items-center space-x-2">
-                    {getRoomIcon(room)}
-                    {getJoinPolicyIcon(room.joinPolicy)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{room.name}</div>
-                    <div className="text-xs text-gray-400 flex items-center space-x-2">
-                      <Users className="w-3 h-3" />
-                      <span>{room.membersCount}</span>
-                      {room.capacity && (
-                        <>
-                          <span>/</span>
-                          <span>{room.capacity}</span>
-                        </>
-                      )}
+                  <button
+                    onClick={() => handleRoomClick(room)}
+                    className="flex items-center space-x-2 flex-1 min-w-0"
+                  >
+                    <div className="flex items-center space-x-2">
+                      {getRoomIcon(room)}
+                      {getJoinPolicyIcon(room.joinPolicy)}
                     </div>
-                  </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{room.name}</div>
+                      <div className="text-xs text-gray-400 flex items-center space-x-2">
+                        <Users className="w-3 h-3" />
+                        <span>{room.membersCount}</span>
+                        {room.capacity && (
+                          <>
+                            <span>/</span>
+                            <span>{room.capacity}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </button>
                   {!room.isMember && (
                     <button
                       onClick={(e) => {
@@ -265,7 +275,7 @@ export default function ClubDetail() {
                       <UserPlus className="w-3 h-3" />
                     </button>
                   )}
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -306,6 +316,9 @@ export default function ClubDetail() {
                 {getRoomIcon(selectedRoom)}
                 <h2 className="font-semibold">{selectedRoom.name}</h2>
                 {getJoinPolicyIcon(selectedRoom.joinPolicy)}
+                {isConnected && (
+                  <div className="w-2 h-2 bg-green-500 rounded-full" title="Connected to chat" />
+                )}
               </div>
               <div className="flex-1" />
               <div className="flex items-center space-x-2">
@@ -343,43 +356,26 @@ export default function ClubDetail() {
             )}
 
             {/* Chat Area */}
-            <div className="flex-1 bg-gray-900 p-4">
-              <div className="max-w-4xl mx-auto">
-                <div className="text-center text-gray-400 py-8">
-                  <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <h3 className="text-xl font-semibold mb-2">Chào mừng đến với {selectedRoom.name}!</h3>
-                  <p className="text-sm">
-                    {selectedRoom.isMember 
-                      ? 'Bạn đã tham gia room này. Hãy bắt đầu trò chuyện!'
-                      : 'Bạn cần tham gia room để có thể trò chuyện.'
-                    }
-                  </p>
-                  {!selectedRoom.isMember && (
+            {selectedRoom.isMember ? (
+              <ChatContainer
+                roomId={selectedRoom.id}
+                currentUserId={user?.id?.toString()}
+                className="flex-1"
+              />
+            ) : (
+              <div className="flex-1 bg-gray-900 p-4">
+                <div className="max-w-4xl mx-auto">
+                  <div className="text-center text-gray-400 py-8">
+                    <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <h3 className="text-xl font-semibold mb-2">Chào mừng đến với {selectedRoom.name}!</h3>
+                    <p className="text-sm mb-4">
+                      Bạn cần tham gia room để có thể trò chuyện.
+                    </p>
                     <button
                       onClick={() => handleJoinRoom(selectedRoom)}
-                      className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium transition-colors"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium transition-colors"
                     >
                       Tham gia room
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Chat Input */}
-            {selectedRoom.isMember && (
-              <div className="bg-gray-800 border-t border-gray-700 p-4">
-                <div className="max-w-4xl mx-auto">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        placeholder={`Gửi tin nhắn trong ${selectedRoom.name}`}
-                        className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                    <button className="p-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
-                      <MessageSquare className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
@@ -506,6 +502,9 @@ export default function ClubDetail() {
           </div>
         </div>
       )}
+      
+      {/* Debug Panel - Remove in production */}
+      <ChatDebug />
     </div>
   );
 }

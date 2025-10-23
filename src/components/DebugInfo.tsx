@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { API_CONFIG } from '../config/apiConfig';
 
 export function DebugInfo() {
   const { isAuthenticated, user } = useAuth();
@@ -33,7 +34,7 @@ export function DebugInfo() {
         
         <div>
           <span className="text-gray-400">API Base:</span>
-          <span className="ml-2 text-yellow-400">https://localhost:7227</span>
+          <span className="ml-2 text-yellow-400">{API_CONFIG.STUDENT_GAMER_HUB_URL}</span>
         </div>
       </div>
       

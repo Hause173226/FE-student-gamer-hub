@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Client, Message } from '@stomp/stompjs';
 import { ChatMessage } from '../services/platformGameService';
+import { API_CONFIG } from '../config/apiConfig';
 
 interface UseWebSocketProps {
   roomId: number;
@@ -17,7 +18,7 @@ export const useWebSocket = ({ roomId, username, onMessageReceived }: UseWebSock
   useEffect(() => {
     // Create STOMP client with native WebSocket
     const client = new Client({
-      brokerURL: 'ws://localhost:8080/ws/chat',
+      brokerURL: `ws://${API_CONFIG.PLATFORM_GAME_URL.replace('http://', '')}/ws/chat`,
       
       connectHeaders: {
         Authorization: `Basic ${btoa('admin:123456')}`

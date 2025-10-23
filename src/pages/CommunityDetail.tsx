@@ -21,10 +21,24 @@ export function CommunityDetail() {
     description: '',
     isPublic: true,
   });
+  const [isCreatingClub, setIsCreatingClub] = useState(false);
+  const [lastCreateTime, setLastCreateTime] = useState(0);
 
   useEffect(() => {
     loadCommunityAndClubs();
   }, [communityId]);
+
+  // Update countdown every second
+  useEffect(() => {
+    if (!canCreateClub()) {
+      const interval = setInterval(() => {
+        // Force re-render to update countdown
+        setLastCreateTime(prev => prev);
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [lastCreateTime]);
 
   const loadCommunityAndClubs = async () => {
     if (!communityId) return;
@@ -65,8 +79,29 @@ export function CommunityDetail() {
   };
 
   const handleCreateClub = async () => {
-    if (!createForm.name.trim() || !createForm.description.trim()) {
-      toast.error('Vui lòng điền đầy đủ thông tin');
+    // Rate limiting - prevent spam clicking
+    const now = Date.now();
+    const timeSinceLastCreate = now - lastCreateTime;
+    const minInterval = 2000; // 2 seconds minimum between requests
+    
+    if (timeSinceLastCreate < minInterval) {
+      toast.error(`Vui lòng chờ ${Math.ceil((minInterval - timeSinceLastCreate) / 1000)} giây trước khi tạo club mới`);
+      return;
+    }
+
+    // Validation
+    if (!createForm.name.trim()) {
+      toast.error('Vui lòng nhập tên club');
+      return;
+    }
+
+    if (createForm.name.trim().length < 3) {
+      toast.error('Tên club phải có ít nhất 3 ký tự');
+      return;
+    }
+
+    if (createForm.name.trim().length > 50) {
+      toast.error('Tên club không được quá 50 ký tự');
       return;
     }
 
@@ -75,25 +110,65 @@ export function CommunityDetail() {
       return;
     }
 
+    // Check if user is authenticated
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Vui lòng đăng nhập để tạo club');
+      return;
+    }
+
+    setIsCreatingClub(true);
     try {
+      const clubData = {
+        communityId,
+        name: createForm.name.trim(),
+        description: createForm.description.trim() || null,
+        isPublic: createForm.isPublic
+      };
+      
+      console.log('🔄 Creating club with data:', clubData);
+      
       const newClub = await ClubService.createClub(
         communityId, 
         {
-          name: createForm.name,
-          description: createForm.description,
-          isPublic: createForm.isPublic,
-          membersCount: 0
+          name: createForm.name.trim(),
+          description: createForm.description.trim() || undefined, // Allow empty description
+          isPublic: createForm.isPublic
         }
       );
 
       setClubs(prev => [newClub, ...prev]);
       setCreateForm({ name: '', description: '', isPublic: true });
       setShowCreateClubModal(false);
-      toast.success('Tạo club thành công!');
-    } catch (error) {
+      setLastCreateTime(Date.now());
+      toast.success(`Tạo club "${createForm.name.trim()}" thành công!`);
+    } catch (error: any) {
       console.error('❌ Error creating club:', error);
-      toast.error('Không thể tạo club mới');
+      
+      if (error.message) {
+        toast.error(error.message);
+      } else if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Không thể tạo club mới');
+      }
+    } finally {
+      setIsCreatingClub(false);
     }
+  };
+
+  const canCreateClub = () => {
+    const now = Date.now();
+    const timeSinceLastCreate = now - lastCreateTime;
+    const minInterval = 2000; // 2 seconds minimum between requests
+    return timeSinceLastCreate >= minInterval;
+  };
+
+  const getTimeUntilNextCreate = () => {
+    const now = Date.now();
+    const timeSinceLastCreate = now - lastCreateTime;
+    const minInterval = 2000;
+    return Math.max(0, minInterval - timeSinceLastCreate);
   };
 
   const getClubColor = (club: Club) => {
@@ -217,10 +292,10 @@ export function CommunityDetail() {
             </button>
             <button
               onClick={() => setShowCreateClubModal(true)}
-              className="flex items-center space-x-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
+              className="flex items-center space-x-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors shadow-lg hover:shadow-indigo-500/25"
             >
               <Plus className="w-5 h-5" />
-              <span>Tạo club</span>
+              <span>Tạo Club Mới</span>
             </button>
           </div>
         </div>
@@ -234,9 +309,18 @@ export function CommunityDetail() {
 
         {filteredClubs.length === 0 ? (
           <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
-            <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400 text-lg">Chưa có club nào trong cộng đồng này</p>
-            <p className="text-gray-500 text-sm mt-2">Hãy là người đầu tiên tạo club!</p>
+            <div className="w-20 h-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Users className="w-10 h-10 text-white" />
+            </div>
+            <h3 className="text-xl font-semibold text-white mb-2">Chưa có club nào</h3>
+            <p className="text-gray-400 text-lg mb-6">Hãy là người đầu tiên tạo club trong cộng đồng này!</p>
+            <button
+              onClick={() => setShowCreateClubModal(true)}
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-medium"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Tạo Club Đầu Tiên</span>
+            </button>
           </div>
         ) : (
           <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -304,70 +388,96 @@ export function CommunityDetail() {
 
         {/* Create Club Modal */}
         {showCreateClubModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 border border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white">Tạo club mới</h3>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-white">Tạo Club Mới</h3>
+                  <p className="text-sm text-gray-400 mt-1">Tạo club trong cộng đồng {community?.name}</p>
+                </div>
                 <button
                   onClick={() => setShowCreateClubModal(false)}
                   className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
                 >
-                  <span className="text-gray-400">×</span>
+                  <span className="text-gray-400 text-xl">×</span>
                 </button>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    Tên club
+                    Tên Club *
                   </label>
                   <input
                     type="text"
                     value={createForm.name}
                     onChange={(e) => setCreateForm({...createForm, name: e.target.value})}
-                    placeholder="VD: Valorant Team 3"
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                    placeholder="VD: Valorant Team 3, League Squad..."
+                    maxLength={50}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {createForm.name.length}/50 ký tự
+                  </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">
-                    Mô tả
+                    Mô tả (Tùy chọn)
                   </label>
                   <textarea
                     rows={3}
                     value={createForm.description}
                     onChange={(e) => setCreateForm({...createForm, description: e.target.value})}
-                    placeholder="Mô tả về club..."
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                    placeholder="Mô tả về club, mục tiêu, quy tắc..."
+                    maxLength={200}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {createForm.description.length}/200 ký tự
+                  </p>
                 </div>
 
-                <div>
-                  <label className="flex items-center space-x-2">
+                <div className="bg-gray-700/50 rounded-lg p-4">
+                  <label className="flex items-start space-x-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={createForm.isPublic}
                       onChange={(e) => setCreateForm({...createForm, isPublic: e.target.checked})}
-                      className="w-4 h-4 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500"
+                      className="w-5 h-5 text-indigo-600 bg-gray-700 border-gray-600 rounded focus:ring-indigo-500 mt-0.5"
                     />
-                    <span className="text-sm text-white">Club công khai</span>
+                    <div>
+                      <span className="text-sm font-medium text-white">Club công khai</span>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Mọi người có thể tìm thấy và tham gia club này
+                      </p>
+                    </div>
                   </label>
                 </div>
               </div>
 
-              <div className="flex space-x-3 mt-6">
+              <div className="flex space-x-3 mt-8">
                 <button
                   onClick={() => setShowCreateClubModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
                 >
                   Hủy
                 </button>
                 <button
                   onClick={handleCreateClub}
-                  className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
+                  disabled={!createForm.name.trim() || isCreatingClub || !canCreateClub()}
+                  className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium flex items-center justify-center space-x-2"
                 >
-                  Tạo club
+                  {isCreatingClub ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Đang tạo...</span>
+                    </>
+                  ) : !canCreateClub() ? (
+                    <span>Vui lòng chờ {Math.ceil(getTimeUntilNextCreate() / 1000)}s...</span>
+                  ) : (
+                    <span>Tạo Club</span>
+                  )}
                 </button>
               </div>
             </div>

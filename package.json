@@ -11,15 +11,19 @@
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
+    "@microsoft/signalr": "^9.0.6",
     "@react-oauth/google": "^0.12.2",
     "@stomp/stompjs": "^7.2.1",
     "axios": "^1.12.2",
     "clsx": "^2.0.0",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.344.0",
+    "node-fetch": "^3.3.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.9.4",
+    "redis": "^5.8.3",
     "sockjs-client": "^1.6.1"
   },
   "devDependencies": {
