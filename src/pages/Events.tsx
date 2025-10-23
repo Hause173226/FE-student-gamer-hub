@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   Calendar, 
   Clock, 
   MapPin, 
   Users, 
   Trophy, 
-  Star,
+  // Star,
   Plus,
   Filter,
   Search,
@@ -13,9 +13,9 @@ import {
   Heart,
   Share,
   ExternalLink,
-  Award,
+  // Award,
   Target,
-  Zap
+  // Zap
 } from 'lucide-react';
 
 export function Events() {

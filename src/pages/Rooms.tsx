@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { Mic, MicOff, Headphones, Headphones as HeadphonesOff, Settings, UserPlus, Crown, Shield, Volume2, VolumeX, Phone, PhoneOff, Users, Hash, Plus, Search, Filter, MoreVertical, Send, Smile, Paperclip, Image, MessageSquare, Gamepad2, Star, MapPin, Clock } from 'lucide-react';
+import { Mic, MicOff, Headphones, Headphones as HeadphonesOff, Settings, UserPlus, Crown, Shield, Volume2,
+  // VolumeX, Phone,
+  PhoneOff, Users, Hash,
+  // Plus,
+  Search,
+  // Filter,
+  MoreVertical, Send, Smile, Paperclip, Image,
+  // MessageSquare,
+  Gamepad2,
+  // Star, MapPin, Clock
+} from 'lucide-react';
 
 export function Rooms() {
   const [selectedRoom, setSelectedRoom] = useState('fpt-lol-general');
