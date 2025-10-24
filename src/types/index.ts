@@ -112,8 +112,11 @@ export interface Mission {
   completed: boolean;
 }
 
-export type ViewType =
+export type ViewType = 
   | "dashboard"
+  | "games"
+  | "my-games"
+  | "quests"
   | "communities"
   | "friends"
   | "rooms"

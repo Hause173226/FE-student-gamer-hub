@@ -1,239 +1,428 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Search, 
-  Filter, 
-  Clock, 
-  Users, 
-  Gamepad2, 
   Trophy, 
-  Star,
-  MapPin,
-  Play,
-  MessageCircle,
-  Calendar,
-  TrendingUp,
-  Zap,
-  Flame,
-  Target,
-  Crown
+  Star, 
+  Users, 
+  Calendar, 
+  Clock,
+  CheckCircle,
+  Circle,
+  Activity,
+  Gamepad2
 } from 'lucide-react';
+import DashboardService, { DashboardResponse, TodayQuest, TodayEvent } from '../services/dashboardService';
+import GameService from '../services/gameService';
+import { useAuth } from '../contexts/AuthContext';
 
-export function Dashboard() {
-  // Simplified dashboard - no mock data, will be populated from API later
-  const onlineTeammates: any[] = [];
-  const todayEvents: any[] = [];
-  const dailyMissions: any[] = [];
+const Dashboard: React.FC = () => {
+  const { user } = useAuth();
+  const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [myGamesCount, setMyGamesCount] = useState(0);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Load dashboard data and games count in parallel
+      const [dashboardResult, gamesResult] = await Promise.allSettled([
+        DashboardService.getTodayDashboard().catch(() => DashboardService.getMockDashboardData()),
+        GameService.getMyGames().catch(() => [])
+      ]);
+      
+      if (dashboardResult.status === 'fulfilled') {
+        setDashboardData(dashboardResult.value);
+        console.log('📊 Dashboard data loaded:', dashboardResult.value);
+      }
+      
+      if (gamesResult.status === 'fulfilled') {
+        setMyGamesCount(gamesResult.value.length);
+        console.log('🎮 Games count loaded:', gamesResult.value.length);
+      }
+    } catch (err) {
+      console.error('❌ Dashboard error:', err);
+      setError('Không thể tải dữ liệu dashboard');
+      // Set mock data as fallback
+      const mockData = DashboardService.getMockDashboardData();
+      setDashboardData(mockData);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompleteQuest = async (quest: TodayQuest) => {
+    if (quest.isCompleted) return;
+    
+    try {
+      const result = await DashboardService.completeQuest(quest.id);
+      if (result.success) {
+        // Update local state
+        setDashboardData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            stats: {
+              ...prev.stats,
+              totalPoints: prev.stats.totalPoints + result.pointsEarned,
+              questsCompletedToday: prev.stats.questsCompletedToday + 1
+            },
+            todayQuests: (prev.todayQuests || []).map(q => 
+              q.id === quest.id 
+                ? { ...q, isCompleted: true, completedAt: new Date().toISOString() }
+                : q
+            )
+          };
+        });
+        console.log(`✅ Quest completed: ${quest.title} (+${result.pointsEarned} points)`);
+      }
+    } catch (err) {
+      console.error('❌ Error completing quest:', err);
+      // Still update UI for better UX
+      setDashboardData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          stats: {
+            ...prev.stats,
+            totalPoints: prev.stats.totalPoints + quest.points,
+            questsCompletedToday: prev.stats.questsCompletedToday + 1
+          },
+          todayQuests: (prev.todayQuests || []).map(q => 
+            q.id === quest.id 
+              ? { ...q, isCompleted: true, completedAt: new Date().toISOString() }
+              : q
+          )
+        };
+      });
+    }
+  };
+
+  const handleRegisterEvent = async (event: TodayEvent) => {
+    if (event.isRegistered) return;
+    
+    try {
+      const result = await DashboardService.registerEvent(event.id);
+      if (result.success) {
+        // Update local state
+        setDashboardData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            todayEvents: (prev.todayEvents || []).map(e => 
+              e.id === event.id 
+                ? { ...e, isRegistered: true, currentParticipants: e.currentParticipants + 1 }
+                : e
+            )
+          };
+        });
+        console.log(`✅ Event registered: ${event.title}`);
+      }
+    } catch (err) {
+      console.error('❌ Error registering for event:', err);
+      // Still update UI for better UX
+      setDashboardData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          todayEvents: (prev.todayEvents || []).map(e => 
+            e.id === event.id 
+              ? { ...e, isRegistered: true, currentParticipants: e.currentParticipants + 1 }
+              : e
+          )
+        };
+      });
+    }
+  };
+
+  const getQuestIcon = (quest: TodayQuest) => {
+    switch (quest.type) {
+      case 'daily': return '📅';
+      case 'weekly': return '📊';
+      case 'special': return '⭐';
+      default: return quest.icon;
+    }
+  };
+
+  const getEventIcon = (event: TodayEvent) => {
+    switch (event.type) {
+      case 'tournament': return '🏆';
+      case 'meetup': return '👥';
+      case 'workshop': return '💻';
+      default: return event.icon;
+    }
+  };
+
+  const formatTime = (timeString: string) => {
+    if (!timeString || typeof timeString !== 'string') {
+      return 'N/A';
+    }
+    
+    try {
+      // Handle ISO datetime string
+      const date = new Date(timeString);
+      if (isNaN(date.getTime())) {
+        return timeString; // Return original if not a valid date
+      }
+      
+      // Format as HH:MM
+      return date.toLocaleTimeString('vi-VN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch (error) {
+      return timeString; // Return original on error
+    }
+  };
+
+  const getProgressPercentage = () => {
+    if (!dashboardData?.stats) return 0;
+    const { level, pointsToNextLevel } = dashboardData.stats;
+    const currentLevelPoints = level * 200; // Assuming 200 points per level
+    const nextLevelPoints = (level + 1) * 200;
+    const progress = ((nextLevelPoints - pointsToNextLevel) / (nextLevelPoints - currentLevelPoints)) * 100;
+    return Math.min(100, Math.max(0, progress));
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+          <p className="text-gray-300">Đang tải dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !dashboardData) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-white mb-2">Lỗi tải dữ liệu</h2>
+          <p className="text-gray-300 mb-4">{error}</p>
+          <button 
+            onClick={loadDashboardData}
+            className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Early return if dashboardData is still null
+  if (!dashboardData) {
+    return null;
+  }
+
+  const { stats, todayQuests, todayEvents, recentActivity } = dashboardData;
 
   return (
-    <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-900">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center space-x-3 mb-2">
-          <h1 className="text-2xl lg:text-3xl font-bold text-white">
-            Chào mừng trở lại, Minh! 
-          </h1>
-          <div className="flex space-x-2">
-            <span className="text-2xl">🎮</span>
-            <span className="text-2xl animate-bounce">🔥</span>
-          </div>
-        </div>
-        <p className="text-gray-400">Hôm nay có <span className="text-emerald-400 font-medium">247 sinh viên</span> đang online và sẵn sàng chơi</p>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-4 rounded-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-white/10 rounded-full"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-emerald-100 text-sm font-medium">Rank hiện tại</p>
-                <p className="text-white font-bold text-lg">Gold II</p>
+      <div className="bg-gray-800 shadow-sm border-b border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white">
+                Chào mừng trở lại, {user?.fullName || user?.userName}!
+              </h1>
+              <p className="text-gray-300 mt-1">
+                Hôm nay là một ngày tuyệt vời để gaming! 🎮
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-gray-400">Hôm nay</div>
+              <div className="text-lg font-semibold text-white">
+                {new Date().toLocaleDateString('vi-VN', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
               </div>
-              <Trophy className="w-8 h-8 text-emerald-100" />
-            </div>
-            <div className="flex items-center space-x-1 text-emerald-100 text-xs">
-              <TrendingUp className="w-3 h-3" />
-              <span>+2 hạng tuần này</span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-gradient-to-r from-purple-500 to-indigo-600 p-4 rounded-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-white/10 rounded-full"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-purple-100 text-sm font-medium">Level</p>
-                <p className="text-white font-bold text-lg">12</p>
-              </div>
-              <Star className="w-8 h-8 text-purple-100" />
-            </div>
-            <div className="w-full bg-purple-400/30 rounded-full h-2">
-              <div className="bg-purple-100 h-2 rounded-full" style={{ width: '82%' }}></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-r from-rose-500 to-pink-600 p-4 rounded-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-white/10 rounded-full"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-rose-100 text-sm font-medium">Trận thắng tuần</p>
-                <p className="text-white font-bold text-lg">12/18</p>
-              </div>
-              <Target className="w-8 h-8 text-rose-100" />
-            </div>
-            <div className="text-rose-100 text-xs">
-              <span className="text-emerald-200">67%</span> tỷ lệ thắng
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-r from-amber-500 to-orange-600 p-4 rounded-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-white/10 rounded-full"></div>
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-amber-100 text-sm font-medium">XP tích lũy</p>
-                <p className="text-white font-bold text-lg">2,450</p>
-              </div>
-              <Flame className="w-8 h-8 text-amber-100" />
-            </div>
-            <div className="text-amber-100 text-xs">
-              +150 XP hôm nay
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Daily Missions */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <h2 className="text-xl font-bold text-white">Nhiệm vụ hàng ngày</h2>
-                <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-2 py-1 rounded-full text-xs font-bold">
-                  🎯 NEW
-                </span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
+          {/* Points Card */}
+          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-indigo-100 text-sm font-medium">Tổng điểm</p>
+                <p className="text-3xl font-bold">
+                  {typeof stats?.totalPoints === 'number' ? stats.totalPoints.toLocaleString() : '0'}
+                </p>
               </div>
-              <button className="text-indigo-400 hover:text-indigo-300 text-sm font-medium">
-                Xem thêm
-              </button>
+              <div className="bg-indigo-400 bg-opacity-30 rounded-full p-3">
+                <Star className="h-6 w-6" />
+              </div>
             </div>
-            
-            <div className="space-y-3">
-              {dailyMissions.map((mission) => (
-                <div key={mission.id} className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-white font-medium">{mission.title}</h3>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-yellow-400 text-sm font-bold">+{mission.xp} XP</span>
-                      {mission.completed && <Crown className="w-4 h-4 text-yellow-400" />}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 mr-4">
-                      <div className="w-full bg-gray-600 rounded-full h-2">
-                        <div 
-                          className="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full transition-all duration-300" 
-                          style={{ width: `${(mission.progress / mission.total) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    <span className="text-gray-400 text-sm">{mission.progress}/{mission.total}</span>
-                  </div>
-                </div>
-              ))}
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-sm">
+                <span>Cấp độ {stats?.level || 0}</span>
+                <span>{stats?.pointsToNextLevel || 0} điểm đến cấp tiếp theo</span>
+              </div>
+              <div className="mt-2 bg-indigo-400 bg-opacity-30 rounded-full h-2">
+                <div 
+                  className="bg-white rounded-full h-2 transition-all duration-500"
+                  style={{ width: `${getProgressPercentage()}%` }}
+                ></div>
+              </div>
             </div>
           </div>
 
-          {/* Matchmaking Section */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white">Tìm đồng đội ngay 🔥</h2>
-              <button className="text-indigo-400 hover:text-indigo-300 text-sm font-medium">
-                Xem tất cả
-              </button>
+          {/* Quests Card */}
+          <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-emerald-100 text-sm font-medium">Nhiệm vụ hôm nay</p>
+                <p className="text-3xl font-bold">{stats?.questsCompletedToday || 0}/{stats?.totalQuestsToday || 0}</p>
+              </div>
+              <div className="bg-emerald-400 bg-opacity-30 rounded-full p-3">
+                <CheckCircle className="h-6 w-6" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-sm text-emerald-100">
+                {(stats?.questsCompletedToday || 0) === (stats?.totalQuestsToday || 0)
+                  ? '🎉 Hoàn thành tất cả!' 
+                  : `${(stats?.totalQuestsToday || 0) - (stats?.questsCompletedToday || 0)} nhiệm vụ còn lại`
+                }
+              </div>
+            </div>
+          </div>
+
+          {/* Games Card */}
+          <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-green-100 text-sm font-medium">Games trong thư viện</p>
+                <p className="text-3xl font-bold">{myGamesCount}</p>
+              </div>
+              <div className="bg-green-400 bg-opacity-30 rounded-full p-3">
+                <Gamepad2 className="h-6 w-6" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-sm text-green-100">
+                Games đã thêm vào thư viện
+              </div>
+            </div>
+          </div>
+
+          {/* Friends Card */}
+          <div className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-purple-100 text-sm font-medium">Bạn bè online</p>
+                <p className="text-3xl font-bold">{stats?.friendsOnline || 0}</p>
+              </div>
+              <div className="bg-purple-400 bg-opacity-30 rounded-full p-3">
+                <Users className="h-6 w-6" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-sm text-purple-100">
+                {stats?.totalFriends || 0} bạn bè tổng cộng
+              </div>
+            </div>
+          </div>
+
+          {/* Events Card */}
+          <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-xl p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-orange-100 text-sm font-medium">Sự kiện hôm nay</p>
+                <p className="text-3xl font-bold">{stats?.eventsToday || 0}</p>
+              </div>
+              <div className="bg-orange-400 bg-opacity-30 rounded-full p-3">
+                <Calendar className="h-6 w-6" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-sm text-orange-100">
+                {stats?.roomsJoined || 0} rooms đã tham gia
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Today's Quests */}
+          <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white flex items-center">
+                <Trophy className="h-5 w-5 mr-2 text-emerald-500" />
+                Nhiệm vụ hôm nay
+              </h2>
+              <span className="text-sm text-gray-400">
+                {stats?.questsCompletedToday || 0}/{stats?.totalQuestsToday || 0}
+              </span>
             </div>
             
-            {/* Quick Match Buttons */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-              <button className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all transform hover:scale-105">
-                <div className="text-center">
-                  <Gamepad2 className="w-6 h-6 mx-auto mb-2" />
-                  <p className="text-sm font-medium">League of Legends</p>
-                  <p className="text-xs text-blue-100">15 người online</p>
-                </div>
-              </button>
-              
-              <button className="bg-gradient-to-r from-red-600 to-rose-600 p-4 rounded-lg hover:from-red-700 hover:to-rose-700 transition-all transform hover:scale-105">
-                <div className="text-center">
-                  <Zap className="w-6 h-6 mx-auto mb-2" />
-                  <p className="text-sm font-medium">Valorant</p>
-                  <p className="text-xs text-red-100">23 người online</p>
-                </div>
-              </button>
-              
-              <button className="bg-gradient-to-r from-purple-600 to-violet-600 p-4 rounded-lg hover:from-purple-700 hover:to-violet-700 transition-all transform hover:scale-105 col-span-2 lg:col-span-1">
-                <div className="text-center">
-                  <TrendingUp className="w-6 h-6 mx-auto mb-2" />
-                  <p className="text-sm font-medium">Dota 2</p>
-                  <p className="text-xs text-purple-100">8 người online</p>
-                </div>
-              </button>
-            </div>
-
-            {/* Search Bar */}
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Tìm theo game, rank, trường... (VD: 'FPT Gold Valorant')"
-                className="w-full pl-10 pr-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
-              />
-              <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors">
-                <Filter className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Online Teammates */}
-            <div className="space-y-3">
-              {onlineTeammates.map((teammate) => (
-                <div key={teammate.id} className="bg-gray-700 rounded-lg p-4 hover:bg-gray-650 transition-all transform hover:scale-[1.02]">
+            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+              {(todayQuests || []).map((quest: TodayQuest, index: number) => (
+                <div 
+                  key={quest.id || `quest-${index}`}
+                  className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                    quest.isCompleted 
+                      ? 'bg-emerald-900/30 border-emerald-500' 
+                      : 'bg-gray-700 border-gray-600 hover:border-emerald-400 hover:bg-gray-600'
+                  }`}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="relative">
-                        <div className="w-12 h-12 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
-                          <span className="text-sm font-bold">{teammate.avatar}</span>
+                      <div className="text-2xl">{getQuestIcon(quest)}</div>
+                      <div>
+                        <h3 className={`font-semibold ${quest.isCompleted ? 'text-emerald-300' : 'text-white'}`}>
+                          {quest.title || 'Untitled Quest'}
+                        </h3>
+                        <p className={`text-sm ${quest.isCompleted ? 'text-emerald-400' : 'text-gray-400'}`}>
+                          {quest.description || 'No description available'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="text-right">
+                        <div className={`text-sm font-semibold ${quest.isCompleted ? 'text-emerald-400' : 'text-emerald-400'}`}>
+                          +{quest.points || 0} điểm
                         </div>
-                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 ${teammate.isPlaying ? 'bg-red-500' : 'bg-emerald-500'} rounded-full border-2 border-gray-700`}></div>
-                        {teammate.isPlaying && (
-                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-purple-500 rounded-full border-2 border-gray-700 flex items-center justify-center">
-                            <Play className="w-2 h-2 text-white" />
+                        {quest.isCompleted && quest.completedAt && (
+                          <div className="text-xs text-emerald-500">
+                            {new Date(quest.completedAt).toLocaleTimeString('vi-VN', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
                           </div>
                         )}
                       </div>
-                      <div>
-                        <h3 className="text-white font-medium">{teammate.name}</h3>
-                        <p className="text-gray-300 text-sm">{teammate.game} • {teammate.rank}</p>
-                        <div className="flex items-center space-x-2 text-xs text-gray-400">
-                          <MapPin className="w-3 h-3" />
-                          <span>{teammate.university}</span>
-                          <Clock className="w-3 h-3 ml-2" />
-                          <span>Online {teammate.time} trước</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                        {teammate.isPlaying ? 'Theo dõi' : 'Mời chơi'}
-                      </button>
-                      <button className="bg-gray-600 hover:bg-gray-500 text-white p-2 rounded-lg transition-colors">
-                        <MessageCircle className="w-4 h-4" />
+                      <button
+                        onClick={() => handleCompleteQuest(quest)}
+                        disabled={quest.isCompleted}
+                        className={`p-2 rounded-full transition-colors ${
+                          quest.isCompleted
+                            ? 'bg-emerald-900/50 text-emerald-300 cursor-not-allowed'
+                            : 'bg-emerald-900/50 text-emerald-300 hover:bg-emerald-800/50'
+                        }`}
+                      >
+                        {quest.isCompleted ? (
+                          <CheckCircle className="h-5 w-5" />
+                        ) : (
+                          <Circle className="h-5 w-5" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -242,137 +431,116 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* Recent Activity */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h2 className="text-xl font-bold text-white mb-4">Hoạt động gần đây</h2>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3 p-3 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors">
-                <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center">
-                  <Trophy className="w-5 h-5" />
+          {/* Today's Events */}
+          <div className="bg-gray-800 rounded-xl shadow-sm border border-gray-700 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white flex items-center">
+                <Calendar className="h-5 w-5 mr-2 text-orange-500" />
+                Sự kiện hôm nay
+              </h2>
+              <span className="text-sm text-gray-400">
+                {todayEvents?.filter(e => e.isRegistered).length || 0}/{todayEvents?.length || 0} đã đăng ký
+              </span>
+            </div>
+            
+            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+              {(todayEvents || []).map((event: TodayEvent, index) => (
+                <div 
+                  key={event.id || `event-${index}`}
+                  className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                    event.isRegistered 
+                      ? 'bg-orange-900/30 border-orange-500' 
+                      : 'bg-gray-700 border-gray-600 hover:border-orange-400 hover:bg-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="text-2xl">{getEventIcon(event)}</div>
+                      <div>
+                        <h3 className={`font-semibold ${event.isRegistered ? 'text-orange-300' : 'text-white'}`}>
+                          {event.title || 'Untitled Event'}
+                        </h3>
+                        <p className={`text-sm ${event.isRegistered ? 'text-orange-400' : 'text-gray-400'}`}>
+                          {event.description || 'No description available'}
+                        </p>
+                        <div className="flex items-center space-x-4 mt-1">
+                          <div className="flex items-center text-xs text-gray-400">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {formatTime(event.startTime)} - {formatTime(event.endTime)}
+                          </div>
+                          <div className="flex items-center text-xs text-gray-400">
+                            <Users className="h-3 w-3 mr-1" />
+                            {event.currentParticipants || 0}/{event.maxParticipants || 0}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="text-right">
+                        <div className={`text-sm font-semibold ${event.isRegistered ? 'text-orange-400' : 'text-orange-400'}`}>
+                          {event.type === 'tournament' ? 'Giải đấu' : 
+                           event.type === 'meetup' ? 'Gặp gỡ' : 'Workshop'}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {event.isRegistered ? 'Đã đăng ký' : 'Chưa đăng ký'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRegisterEvent(event)}
+                        disabled={event.isRegistered || event.currentParticipants >= event.maxParticipants}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          event.isRegistered
+                            ? 'bg-orange-900/50 text-orange-300 cursor-not-allowed'
+                            : event.currentParticipants >= event.maxParticipants
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            : 'bg-orange-900/50 text-orange-300 hover:bg-orange-800/50'
+                        }`}
+                      >
+                        {event.isRegistered ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : event.currentParticipants >= event.maxParticipants ? (
+                          'Đầy'
+                        ) : (
+                          'Đăng ký'
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-white font-medium">Thắng trận Ranked Valorant vs HCMUT team</p>
-                  <p className="text-gray-400 text-sm">+25 RR • 2 giờ trước • MVP với 24/8/12</p>
-                </div>
-                <span className="text-emerald-400 text-sm font-medium">+50 XP</span>
-              </div>
-              
-              <div className="flex items-center space-x-3 p-3 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors">
-                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-white font-medium">Tham gia cộng đồng FPT LoL - Chào mừng! 🎉</p>
-                  <p className="text-gray-400 text-sm">1 ngày trước • Giờ có thể tham gia các sự kiện độc quyền</p>
-                </div>
-                <span className="text-blue-400 text-sm font-medium">+20 XP</span>
-              </div>
-
-              <div className="flex items-center space-x-3 p-3 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors">
-                <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
-                  <Star className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-white font-medium">Đạt thành tích "Team Player" 🤝</p>
-                  <p className="text-gray-400 text-sm">2 ngày trước • Đã chơi 50 trận cùng team</p>
-                </div>
-                <span className="text-purple-400 text-sm font-medium">+100 XP</span>
-              </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Today's Events */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">Sự kiện hôm nay</h2>
-              <Calendar className="w-5 h-5 text-gray-400" />
-            </div>
-            <div className="space-y-3">
-              {todayEvents.map((event) => (
-                <div key={event.id} className="bg-gray-700 rounded-lg p-3 hover:bg-gray-650 transition-colors">
-                  <h3 className="text-white font-medium text-sm">{event.title}</h3>
-                  <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
-                    <span>{event.time}</span>
-                    <span>{event.participants} người</span>
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-gray-500">{event.university}</p>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      event.type === 'tournament' ? 'bg-yellow-500/20 text-yellow-400' :
-                      event.type === 'friendly' ? 'bg-blue-500/20 text-blue-400' :
-                      'bg-green-500/20 text-green-400'
-                    }`}>
-                      {event.type === 'tournament' ? '🏆 Giải đấu' :
-                       event.type === 'friendly' ? '🤝 Giao hữu' :
-                       '⚔️ Scrimmage'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm font-medium transition-colors">
-              Xem thêm sự kiện
-            </button>
+        {/* Recent Activity */}
+        <div className="mt-8 bg-gray-800 rounded-xl shadow-sm border border-gray-700 p-6">
+          <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white flex items-center">
+                <Activity className="h-5 w-5 mr-2 text-purple-500" />
+                Hoạt động gần đây
+              </h2>
+            <span className="text-sm text-gray-400">
+              {recentActivity?.length || 0} hoạt động
+            </span>
           </div>
-
-          {/* University Leaderboard */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h2 className="text-lg font-bold text-white mb-4">BXH trường tuần này 🏆</h2>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg border border-yellow-500/30">
-                <div className="flex items-center space-x-2">
-                  <span className="text-yellow-400 font-bold text-lg">👑</span>
-                  <span className="text-white text-sm font-medium">FPT University</span>
+          
+          <div className="space-y-4">
+            {(recentActivity || []).map((activity, index) => (
+              <div key={index} className="flex items-center space-x-4 p-3 rounded-lg hover:bg-gray-700 transition-colors">
+                <div className="text-2xl">{activity.icon || '📋'}</div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">{activity.message || 'No message'}</p>
+                  <p className="text-sm text-gray-400">
+                    {activity.timestamp ? new Date(activity.timestamp).toLocaleString('vi-VN') : 'No timestamp'}
+                  </p>
                 </div>
-                <span className="text-yellow-400 text-sm font-bold">2,450 XP</span>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-gray-300 font-bold">2.</span>
-                  <span className="text-white text-sm">HCMUT</span>
-                </div>
-                <span className="text-gray-300 text-sm font-medium">2,180 XP</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-amber-600 font-bold">3.</span>
-                  <span className="text-white text-sm">UEH</span>
-                </div>
-                <span className="text-amber-600 text-sm font-medium">1,920 XP</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-gray-400 font-bold">4.</span>
-                  <span className="text-white text-sm">NEU</span>
-                </div>
-                <span className="text-gray-400 text-sm font-medium">1,650 XP</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h2 className="text-lg font-bold text-white mb-4">Thao tác nhanh</h2>
-            <div className="space-y-2">
-              <button className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-3 rounded-lg text-sm font-medium transition-all transform hover:scale-105">
-                🎮 Tạo phòng chơi
-              </button>
-              <button className="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg text-sm font-medium transition-colors">
-                📚 Tìm coach
-              </button>
-              <button className="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg text-sm font-medium transition-colors">
-                🏆 Đăng ký giải đấu
-              </button>
-              <button className="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg text-sm font-medium transition-colors">
-                💬 Join Discord server
-              </button>
-            </div>
+            ))}
           </div>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default Dashboard;

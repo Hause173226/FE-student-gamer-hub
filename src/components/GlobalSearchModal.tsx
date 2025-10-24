@@ -3,10 +3,12 @@ import { Search, X, UserPlus, Check, Clock, Loader2 } from "lucide-react";
 import friendService, { UserSearchResult } from "../services/friendService";
 
 interface GlobalSearchModalProps {
+  isOpen: boolean;
   onClose: () => void;
 }
 
 export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
+  isOpen,
   onClose,
 }) => {
   const [query, setQuery] = useState("");
@@ -124,6 +126,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
       searchUsers(query, currentPage + 1);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div

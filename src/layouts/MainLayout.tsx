@@ -10,7 +10,7 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children, currentView, onViewChange }: MainLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true); // Luôn mở trên desktop
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
@@ -22,7 +22,6 @@ export function MainLayout({ children, currentView, onViewChange }: MainLayoutPr
           onViewChange={onViewChange}
           isOpen={sidebarOpen}
           isCollapsed={sidebarCollapsed}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
           onCollapseToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
       </div>
@@ -36,7 +35,6 @@ export function MainLayout({ children, currentView, onViewChange }: MainLayoutPr
               onViewChange={onViewChange}
               isOpen={sidebarOpen}
               isCollapsed={false}
-              onToggle={() => setSidebarOpen(false)}
               onCollapseToggle={() => {}}
             />
           </div>

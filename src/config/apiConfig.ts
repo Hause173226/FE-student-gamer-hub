@@ -13,7 +13,15 @@ export const API_CONFIG = {
       GOOGLE_LOGIN: '/api/GoogleAuth/login',
       PROFILE: '/api/Auth/me',
       LOGOUT: '/api/Auth/revoke',
-      REFRESH: '/api/Auth/refresh'
+      REFRESH: '/api/Auth/refresh',
+      // Password Reset
+      PASSWORD_RESET_SEND: '/api/Auth/password:send-reset',
+      PASSWORD_RESET: '/api/Auth/password:reset',
+      PASSWORD_CHANGE: '/api/Auth/me/password:change',
+      // Email Management
+      EMAIL_CONFIRM: '/api/Auth/email:confirm',
+      EMAIL_SEND_CONFIRM: '/api/Auth/me/email:send-confirm',
+      EMAIL_SEND_CHANGE: '/api/Auth/me/email:send-change'
     },
     
     // Community endpoints
@@ -55,6 +63,32 @@ export const API_CONFIG = {
     // Membership endpoints
     MEMBERSHIPS: {
       TREE: '/api/Memberships/tree'
+    },
+    
+    // Dashboard endpoints
+    DASHBOARD: {
+      TODAY: '/api/Dashboard/today'
+    },
+    
+    // Quest endpoints
+    QUESTS: {
+      BASE: '/api/quests',
+      TODAY: '/api/quests/today',
+      CHECK_IN: '/api/quests/check-in',
+      JOIN_ROOM: (roomId: string) => `/api/quests/join-room/${roomId}`,
+      ATTEND_EVENT: (eventId: string) => `/api/quests/attend-event/${eventId}`
+    },
+    
+    // Event endpoints
+    EVENTS: {
+      BASE: '/api/events',
+      REGISTER: (id: string) => `/api/events/${id}/register`
+    },
+    
+    // Game endpoints
+    GAMES: {
+      BASE: '/api/games',
+      MY_GAMES: '/api/me/games'
     }
   }
 };
