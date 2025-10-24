@@ -1,7 +1,7 @@
 // API Configuration - Centralized URL management
 export const API_CONFIG = {
   // Main API URLs
-  STUDENT_GAMER_HUB_URL: 'https://localhost:7227',
+  STUDENT_GAMER_HUB_URL: 'https://student-gamer-hub.onrender.com',
   PLATFORM_GAME_URL: 'http://localhost:8080',
   
   // API Endpoints

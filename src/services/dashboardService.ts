@@ -1,4 +1,4 @@
-import { authAxiosInstance } from './axiosInstance';
+import axiosInstance from './axiosInstance';
 import { API_CONFIG } from '../config/apiConfig';
 
 // ============================================
@@ -63,7 +63,7 @@ export class DashboardService {
   static async getTodayDashboard(): Promise<DashboardResponse> {
     try {
       console.log('🔄 Fetching today dashboard...');
-      const response = await authAxiosInstance.get(API_CONFIG.ENDPOINTS.DASHBOARD.TODAY);
+      const response = await axiosInstance.get(API_CONFIG.ENDPOINTS.DASHBOARD.TODAY);
       console.log('✅ Dashboard API response:', response.data);
       console.log('🔍 API response structure:', JSON.stringify(response.data, null, 2));
       console.log('🔍 Quest fields available:', {
@@ -175,7 +175,7 @@ export class DashboardService {
   static async completeQuest(questId: string): Promise<{ success: boolean; pointsEarned: number }> {
     try {
       console.log(`🔄 Completing quest ${questId}...`);
-      const response = await authAxiosInstance.post(`/api/quests/${questId}/complete`);
+      const response = await axiosInstance.post(`/api/quests/${questId}/complete`);
       console.log('✅ Quest completed:', response.data);
       
       return {
@@ -192,7 +192,7 @@ export class DashboardService {
   static async registerEvent(eventId: string): Promise<{ success: boolean; message: string }> {
     try {
       console.log(`🔄 Registering for event ${eventId}...`);
-      const response = await authAxiosInstance.post(`/api/events/${eventId}/register`);
+      const response = await axiosInstance.post(`/api/events/${eventId}/register`);
       console.log('✅ Event registered:', response.data);
       
       return {

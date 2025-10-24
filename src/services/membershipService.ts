@@ -1,4 +1,4 @@
-import { authAxiosInstance } from './axiosInstance';
+import axiosInstance from './axiosInstance';
 import { MembershipTreeResponse, SidebarClub } from '../types/membership';
 import { API_CONFIG } from '../config/apiConfig';
 
@@ -7,7 +7,7 @@ export class MembershipService {
   static async getMembershipTree(): Promise<SidebarClub[]> {
     try {
       console.log('🔄 Fetching membership tree...');
-      const response = await authAxiosInstance.get<MembershipTreeResponse>(API_CONFIG.ENDPOINTS.MEMBERSHIPS.TREE);
+      const response = await axiosInstance.get<MembershipTreeResponse>(API_CONFIG.ENDPOINTS.MEMBERSHIPS.TREE);
       console.log('✅ Membership tree fetched:', response.data);
       
       // Transform backend data to frontend format

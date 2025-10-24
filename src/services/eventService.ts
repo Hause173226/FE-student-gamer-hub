@@ -1,4 +1,4 @@
-import { authAxiosInstance } from './axiosInstance';
+import axiosInstance from './axiosInstance';
 import { API_CONFIG } from '../config/apiConfig';
 
 export interface Event {
@@ -68,7 +68,7 @@ export class EventService {
       if (filters?.status) params.append('status', filters.status);
       if (filters?.search) params.append('search', filters.search);
       
-      const response = await authAxiosInstance.get(
+      const response = await axiosInstance.get(
         `${API_CONFIG.ENDPOINTS.EVENTS.BASE}?${params.toString()}`
       );
       
@@ -102,7 +102,7 @@ export class EventService {
     try {
       console.log('🔄 Fetching event by ID:', eventId);
       
-      const response = await authAxiosInstance.get(
+      const response = await axiosInstance.get(
         `${API_CONFIG.ENDPOINTS.EVENTS.BASE}/${eventId}`
       );
       
@@ -121,7 +121,7 @@ export class EventService {
     try {
       console.log('🔄 Registering for event:', eventId);
       
-      const response = await authAxiosInstance.post(
+      const response = await axiosInstance.post(
         API_CONFIG.ENDPOINTS.EVENTS.REGISTER(eventId)
       );
       
@@ -153,7 +153,7 @@ export class EventService {
     try {
       console.log('🔄 Unregistering from event:', eventId);
       
-      await authAxiosInstance.delete(
+      await axiosInstance.delete(
         `${API_CONFIG.ENDPOINTS.EVENTS.BASE}/${eventId}/unregister`
       );
       

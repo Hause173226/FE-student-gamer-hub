@@ -1,4 +1,4 @@
-import { authAxiosInstance } from './axiosInstance';
+import axiosInstance from './axiosInstance';
 import { 
   RoomDTO, 
   Room, 
@@ -26,7 +26,7 @@ export class RoomService {
         ? `${API_CONFIG.ENDPOINTS.ROOMS.BY_CLUB(clubId)}?${params}` 
         : API_CONFIG.ENDPOINTS.ROOMS.BY_CLUB(clubId);
       
-      const response = await authAxiosInstance.get<{
+      const response = await axiosInstance.get<{
         Items: RoomDTO[];
         Page: number;
         Size: number;
@@ -50,7 +50,7 @@ export class RoomService {
   static async getRoomById(roomId: string): Promise<Room> {
     try {
       console.log(`🔄 Fetching room ${roomId}...`);
-      const response = await authAxiosInstance.get<RoomDTO>(API_CONFIG.ENDPOINTS.ROOMS.BY_ID(roomId));
+      const response = await axiosInstance.get<RoomDTO>(API_CONFIG.ENDPOINTS.ROOMS.BY_ID(roomId));
       console.log('✅ Room fetched:', response.data);
       
       return this.transformRoom(response.data, 0);
@@ -81,7 +81,7 @@ export class RoomService {
         password: roomData.password
       };
       
-      const response = await authAxiosInstance.post<RoomDTO>(API_CONFIG.ENDPOINTS.ROOMS.BASE, requestData);
+      const response = await axiosInstance.post<RoomDTO>(API_CONFIG.ENDPOINTS.ROOMS.BASE, requestData);
       console.log('✅ Room created:', response.data);
       
       return this.transformRoom(response.data, 0);
@@ -110,7 +110,7 @@ export class RoomService {
         password: roomData.password
       };
       
-      const response = await authAxiosInstance.put<RoomDTO>(API_CONFIG.ENDPOINTS.ROOMS.BY_ID(roomId), requestData);
+      const response = await axiosInstance.put<RoomDTO>(API_CONFIG.ENDPOINTS.ROOMS.BY_ID(roomId), requestData);
       console.log('✅ Room updated:', response.data);
       
       return this.transformRoom(response.data, 0);
@@ -124,7 +124,7 @@ export class RoomService {
   static async deleteRoom(roomId: string): Promise<void> {
     try {
       console.log(`🔄 Deleting room ${roomId}...`);
-      await authAxiosInstance.delete(API_CONFIG.ENDPOINTS.ROOMS.BY_ID(roomId));
+      await axiosInstance.delete(API_CONFIG.ENDPOINTS.ROOMS.BY_ID(roomId));
       console.log('✅ Room deleted');
     } catch (error) {
       console.error(`❌ Error deleting room ${roomId}:`, error);
@@ -145,7 +145,7 @@ export class RoomService {
         message: request?.message
       };
       
-      const response = await authAxiosInstance.post<RoomDTO>(API_CONFIG.ENDPOINTS.ROOMS.JOIN(roomId), requestData);
+      const response = await axiosInstance.post<RoomDTO>(API_CONFIG.ENDPOINTS.ROOMS.JOIN(roomId), requestData);
       console.log('✅ Joined room:', response.data);
       
       return this.transformRoom(response.data, 0);
@@ -159,7 +159,7 @@ export class RoomService {
   static async leaveRoom(roomId: string): Promise<void> {
     try {
       console.log(`🔄 Leaving room ${roomId}...`);
-      await authAxiosInstance.post(API_CONFIG.ENDPOINTS.ROOMS.LEAVE(roomId));
+      await axiosInstance.post(API_CONFIG.ENDPOINTS.ROOMS.LEAVE(roomId));
       console.log('✅ Left room');
     } catch (error) {
       console.error(`❌ Error leaving room ${roomId}:`, error);
@@ -191,7 +191,7 @@ export class RoomService {
         ? `${API_CONFIG.ENDPOINTS.ROOMS.MEMBERS(roomId)}?${params}` 
         : API_CONFIG.ENDPOINTS.ROOMS.MEMBERS(roomId);
       
-      const response = await authAxiosInstance.get<{ data: RoomMemberDTO[] }>(url);
+      const response = await axiosInstance.get<{ data: RoomMemberDTO[] }>(url);
       console.log('✅ Room members fetched:', response.data);
       
       return response.data.data;
@@ -205,7 +205,7 @@ export class RoomService {
   static async approveMember(roomId: string, userId: string): Promise<void> {
     try {
       console.log(`🔄 Approving member ${userId} for room ${roomId}...`);
-      await authAxiosInstance.post(`${API_CONFIG.ENDPOINTS.ROOMS.MEMBERS(roomId)}/${userId}/approve`);
+      await axiosInstance.post(`${API_CONFIG.ENDPOINTS.ROOMS.MEMBERS(roomId)}/${userId}/approve`);
       console.log('✅ Member approved');
     } catch (error) {
       console.error(`❌ Error approving member:`, error);
@@ -217,7 +217,7 @@ export class RoomService {
   static async rejectMember(roomId: string, userId: string): Promise<void> {
     try {
       console.log(`🔄 Rejecting member ${userId} for room ${roomId}...`);
-      await authAxiosInstance.post(`${API_CONFIG.ENDPOINTS.ROOMS.MEMBERS(roomId)}/${userId}/reject`);
+      await axiosInstance.post(`${API_CONFIG.ENDPOINTS.ROOMS.MEMBERS(roomId)}/${userId}/reject`);
       console.log('✅ Member rejected');
     } catch (error) {
       console.error(`❌ Error rejecting member:`, error);
@@ -229,7 +229,7 @@ export class RoomService {
   static async removeMember(roomId: string, userId: string): Promise<void> {
     try {
       console.log(`🔄 Removing member ${userId} from room ${roomId}...`);
-      await authAxiosInstance.delete(`${API_CONFIG.ENDPOINTS.ROOMS.MEMBERS(roomId)}/${userId}`);
+      await axiosInstance.delete(`${API_CONFIG.ENDPOINTS.ROOMS.MEMBERS(roomId)}/${userId}`);
       console.log('✅ Member removed');
     } catch (error) {
       console.error(`❌ Error removing member:`, error);

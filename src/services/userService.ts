@@ -1,4 +1,4 @@
-import axiosInstance, { authAxiosInstance } from "./axiosInstance";
+import axiosInstance from "./axiosInstance";
 import { API_CONFIG } from "../config/apiConfig";
 
 export type LoginPayload = {
@@ -112,11 +112,11 @@ const userService = {
   },
 
   getProfile() {
-    return authAxiosInstance.get(API_CONFIG.ENDPOINTS.AUTH.PROFILE).then((res) => res.data);
+    return axiosInstance.get(API_CONFIG.ENDPOINTS.AUTH.PROFILE).then((res) => res.data);
   },
 
   logout() {
-    return authAxiosInstance.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT).then((res) => res.data);
+    return axiosInstance.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT).then((res) => res.data);
   },
 
   // Password Reset
@@ -139,22 +139,22 @@ const userService = {
 
   // Profile Management
   updateProfile(payload: UpdateProfilePayload) {
-    return authAxiosInstance.put(API_CONFIG.ENDPOINTS.AUTH.PROFILE, payload).then((res) => res.data);
+    return axiosInstance.put(API_CONFIG.ENDPOINTS.AUTH.PROFILE, payload).then((res) => res.data);
   },
 
   changePassword(payload: ChangePasswordPayload) {
-    return authAxiosInstance.post(API_CONFIG.ENDPOINTS.AUTH.PASSWORD_CHANGE, payload).then((res) => res.data);
+    return axiosInstance.post(API_CONFIG.ENDPOINTS.AUTH.PASSWORD_CHANGE, payload).then((res) => res.data);
   },
 
   // Email Management
   sendEmailConfirm(callbackBaseUrl: string) {
     const url = `${API_CONFIG.ENDPOINTS.AUTH.EMAIL_SEND_CONFIRM}?callbackBaseUrl=${encodeURIComponent(callbackBaseUrl)}`;
-    return authAxiosInstance.post(url).then((res) => res.data);
+    return axiosInstance.post(url).then((res) => res.data);
   },
 
   sendEmailChange(payload: ChangeEmailPayload, callbackBaseUrl: string) {
     const url = `${API_CONFIG.ENDPOINTS.AUTH.EMAIL_SEND_CHANGE}?callbackBaseUrl=${encodeURIComponent(callbackBaseUrl)}`;
-    return authAxiosInstance.post(url, payload).then((res) => res.data);
+    return axiosInstance.post(url, payload).then((res) => res.data);
   },
 
   // Token Management

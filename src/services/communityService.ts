@@ -1,4 +1,4 @@
-import axiosInstance, { authAxiosInstance } from './axiosInstance';
+import axiosInstance from './axiosInstance';
 import { CommunityDTO, Community } from '../types/community';
 import { API_CONFIG } from '../config/apiConfig';
 
@@ -76,7 +76,7 @@ export class CommunityService {
   static async joinCommunity(communityId: string): Promise<Community> {
     try {
       console.log(`🔄 Joining community ${communityId}...`);
-      const response = await authAxiosInstance.post<CommunityDTO>(API_CONFIG.ENDPOINTS.COMMUNITIES.JOIN(communityId));
+      const response = await axiosInstance.post<CommunityDTO>(API_CONFIG.ENDPOINTS.COMMUNITIES.JOIN(communityId));
       console.log('✅ Joined community:', response.data);
       
       return this.transformCommunity(response.data);

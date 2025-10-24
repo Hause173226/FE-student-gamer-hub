@@ -1,4 +1,4 @@
-import { authAxiosInstance } from './axiosInstance';
+import axiosInstance from './axiosInstance';
 import { API_CONFIG } from '../config/apiConfig';
 
 // ============================================
@@ -31,7 +31,7 @@ export class QuestService {
   static async getTodayQuests(): Promise<QuestTodayResponse> {
     try {
       console.log('🔄 Fetching today\'s quests...');
-      const response = await authAxiosInstance.get<QuestTodayResponse>(API_CONFIG.ENDPOINTS.QUESTS.TODAY);
+      const response = await axiosInstance.get<QuestTodayResponse>(API_CONFIG.ENDPOINTS.QUESTS.TODAY);
       console.log('✅ Today\'s quests fetched:', response.data);
       return response.data;
     } catch (error) {
@@ -44,7 +44,7 @@ export class QuestService {
   static async completeCheckIn(): Promise<QuestCompletionResponse> {
     try {
       console.log('🔄 Completing check-in quest...');
-      const response = await authAxiosInstance.post(API_CONFIG.ENDPOINTS.QUESTS.CHECK_IN);
+      const response = await axiosInstance.post(API_CONFIG.ENDPOINTS.QUESTS.CHECK_IN);
       console.log('✅ Check-in quest completed:', response.status);
       return {
         success: true,
@@ -69,7 +69,7 @@ export class QuestService {
   static async markJoinRoom(roomId: string): Promise<QuestCompletionResponse> {
     try {
       console.log(`🔄 Marking join room quest for room ${roomId}...`);
-      const response = await authAxiosInstance.post(API_CONFIG.ENDPOINTS.QUESTS.JOIN_ROOM(roomId));
+      const response = await axiosInstance.post(API_CONFIG.ENDPOINTS.QUESTS.JOIN_ROOM(roomId));
       console.log('✅ Join room quest completed:', response.status);
       return {
         success: true,
@@ -94,7 +94,7 @@ export class QuestService {
   static async markAttendEvent(eventId: string): Promise<QuestCompletionResponse> {
     try {
       console.log(`🔄 Marking attend event quest for event ${eventId}...`);
-      const response = await authAxiosInstance.post(API_CONFIG.ENDPOINTS.QUESTS.ATTEND_EVENT(eventId));
+      const response = await axiosInstance.post(API_CONFIG.ENDPOINTS.QUESTS.ATTEND_EVENT(eventId));
       console.log('✅ Attend event quest completed:', response.status);
       return {
         success: true,

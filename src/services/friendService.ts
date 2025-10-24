@@ -110,32 +110,32 @@ export interface GetIncomingRequestsParams {
 const friendService = {
   inviteFriend(userId: string): Promise<void> {
     return axiosInstance
-      .post(`/Friends/${userId}/invite`)
+      .post(`/api/Friends/${userId}/invite`)
       .then(() => undefined);
   },
 
   acceptFriend(userId: string): Promise<void> {
     return axiosInstance
-      .post(`/Friends/${userId}/accept`)
+      .post(`/api/Friends/${userId}/accept`)
       .then(() => undefined);
   },
 
   declineFriend(userId: string): Promise<void> {
     return axiosInstance
-      .post(`/Friends/${userId}/decline`)
+      .post(`/api/Friends/${userId}/decline`)
       .then(() => undefined);
   },
 
   cancelFriendInvite(userId: string): Promise<void> {
     return axiosInstance
-      .post(`/Friends/${userId}/cancel`)
+      .post(`/api/Friends/${userId}/cancel`)
       .then(() => undefined);
   },
 
   // ✅ SIMPLIFIED: Lấy tất cả friends, không filter
   getFriends(params?: GetFriendsParams): Promise<CursorPageResult<FriendDto>> {
     return axiosInstance
-      .get<BackendFriendsResponse>("/Friends", {
+      .get<BackendFriendsResponse>("/api/Friends", {
         params: {
           Cursor: params?.cursor,
           Size: params?.pageSize || 20,
@@ -179,7 +179,7 @@ const friendService = {
     params?: GetIncomingRequestsParams
   ): Promise<PagedResult<FriendRequestDto>> {
     return axiosInstance
-      .get<PagedResult<FriendRequestDto>>("/Friends/requests/incoming", {
+      .get<PagedResult<FriendRequestDto>>("/api/Friends/requests/incoming", {
         params: {
           Page: params?.Page || 1,
           Size: params?.Size || 20,
@@ -194,7 +194,7 @@ const friendService = {
     params: SearchUsersParams
   ): Promise<PagedResult<UserSearchResult>> {
     return axiosInstance
-      .get<PagedResult<UserSearchResult>>("/Friends/search", {
+      .get<PagedResult<UserSearchResult>>("/api/Friends/search", {
         params: {
           q: params.q,
           Page: params.Page || 1,
