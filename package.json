@@ -11,20 +11,28 @@
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
+    "@microsoft/signalr": "^9.0.6",
     "@react-oauth/google": "^0.12.2",
+    "@stomp/stompjs": "^7.2.1",
     "axios": "^1.12.2",
     "clsx": "^2.0.0",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.344.0",
+    "node-fetch": "^3.3.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.6.0",
-    "react-router-dom": "^7.9.4"
+    "react-router-dom": "^7.9.4",
+    "redis": "^5.8.3",
+    "sockjs-client": "^1.6.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@types/react-router-dom": "^5.3.3",
+    "@types/sockjs-client": "^1.5.4",
+    "@types/stompjs": "^2.3.9",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.18",
     "eslint": "^9.9.1",
@@ -35,6 +43,7 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",
-    "vite": "^5.4.2"
+    "vite": "^5.4.2",
+    "vite-plugin-node-polyfills": "^0.24.0"
   }
 }

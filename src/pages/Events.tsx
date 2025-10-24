@@ -1,440 +1,391 @@
-import React, { useState } from 'react';
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Users, 
-  Trophy, 
-  Star,
-  Plus,
-  Filter,
-  Search,
-  Bell,
-  Heart,
-  Share,
-  ExternalLink,
-  Award,
-  Target,
-  Zap
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, MapPin, Users, Clock, Trophy, Gamepad2, GraduationCap, Coffee, Globe, Building2, Search, Filter, ChevronRight, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { EventService, Event, EventFilters } from '../services/eventService';
+import { toast } from 'react-hot-toast';
 
-export function Events() {
-  const [activeTab, setActiveTab] = useState('upcoming');
+const Events: React.FC = () => {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<EventFilters>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedEventType, setSelectedEventType] = useState<string>('');
+  const [selectedMode, setSelectedMode] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
 
-  const upcomingEvents = [
-    {
-      id: 1,
-      title: 'FPT Valorant Championship 2024',
-      description: 'Giải đấu Valorant lớn nhất FPT University với tổng giải thưởng 50 triệu VNĐ',
-      date: '2024-02-15',
-      time: '19:00',
-      duration: '3 giờ',
-      location: 'FPT University HCM',
-      organizer: 'FPT Esports Club',
-      participants: 64,
-      maxParticipants: 64,
-      prize: '50,000,000 VNĐ',
-      status: 'Đang đăng ký',
-      image: 'https://images.pexels.com/photos/442576/pexels-photo-442576.jpeg?auto=compress&cs=tinysrgb&w=400',
-      tags: ['Valorant', 'Tournament', 'Prize Pool'],
-      isRegistered: false,
-      featured: true
-    },
-    {
-      id: 2,
-      title: 'HCMUT League of Legends Weekly',
-      description: 'Giải đấu hàng tuần dành cho sinh viên HCMUT',
-      date: '2024-02-10',
-      time: '20:00',
-      duration: '2 giờ',
-      location: 'Online',
-      organizer: 'HCMUT Gaming',
-      participants: 32,
-      maxParticipants: 40,
-      prize: 'Trophy + XP',
-      status: 'Còn chỗ',
-      tags: ['League of Legends', 'Weekly', 'Online'],
-      isRegistered: true,
-      featured: false
-    },
-    {
-      id: 3,
-      title: 'Vietnam Student Gaming Meetup',
-      description: 'Buổi gặp mặt offline game thủ sinh viên toàn quốc',
-      date: '2024-02-20',
-      time: '14:00',
-      duration: '6 giờ',
-      location: 'Lotte Center Hanoi',
-      organizer: 'VN Student Gamers',
-      participants: 156,
-      maxParticipants: 200,
-      prize: 'Networking + Gifts',
-      status: 'Còn chỗ',
-      tags: ['Meetup', 'Offline', 'Networking'],
-      isRegistered: false,
-      featured: false
-    }
+  // Event types for filter
+  const eventTypes = [
+    { value: '', label: 'Tất cả loại', icon: '📅' },
+    { value: 'Tournament', label: 'Giải đấu', icon: '🏆' },
+    { value: 'Meetup', label: 'Gặp gỡ', icon: '👥' },
+    { value: 'Workshop', label: 'Workshop', icon: '🎓' },
+    { value: 'Online', label: 'Online', icon: '💻' },
+    { value: 'Offline', label: 'Offline', icon: '🏢' }
   ];
 
-  const myEvents = [
-    {
-      id: 4,
-      title: 'FPT Dota 2 Scrimmage',
-      date: '2024-02-08',
-      time: '21:00',
-      status: 'Đã tham gia',
-      result: 'Thắng',
-      placement: '2nd Place'
-    },
-    {
-      id: 5,
-      title: 'UEH Mobile Legends Cup',
-      date: '2024-01-25',
-      time: '18:30',
-      status: 'Đã tham gia',
-      result: 'Thua',
-      placement: '8th Place'
-    }
+  const modes = [
+    { value: '', label: 'Tất cả chế độ' },
+    { value: 'Online', label: 'Trực tuyến' },
+    { value: 'Offline', label: 'Trực tiếp' }
   ];
 
-  const tabs = [
-    { id: 'upcoming', label: 'Sắp diễn ra', count: upcomingEvents.length },
-    { id: 'my-events', label: 'Sự kiện của tôi', count: myEvents.length },
-    { id: 'create', label: 'Tạo sự kiện', count: null }
-  ];
+  useEffect(() => {
+    loadEvents();
+  }, [filters]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Đang đăng ký': return 'bg-emerald-500/20 text-emerald-400';
-      case 'Còn chỗ': return 'bg-blue-500/20 text-blue-400';
-      case 'Đầy': return 'bg-red-500/20 text-red-400';
-      default: return 'bg-gray-500/20 text-gray-400';
+  const loadEvents = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const eventFilters: EventFilters = {
+        ...filters,
+        search: searchTerm || undefined,
+        eventType: selectedEventType || undefined,
+        mode: selectedMode || undefined
+      };
+      
+      const response = await EventService.getAllEvents(eventFilters);
+      setEvents(response.items);
+    } catch (err: any) {
+      setError(err.message || 'Không thể tải danh sách sự kiện');
+      console.error('Error loading events:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleRegisterEvent = async (eventId: string) => {
+    try {
+      await EventService.registerEvent(eventId);
+      toast.success('Đăng ký sự kiện thành công!');
+      
+      // Update local state
+      setEvents(prevEvents => 
+        prevEvents.map(event => 
+          event.id === eventId 
+            ? { ...event, isRegistered: true, currentParticipants: event.currentParticipants + 1 }
+            : event
+        )
+      );
+    } catch (err: any) {
+      toast.error(err.message || 'Không thể đăng ký sự kiện');
+    }
+  };
+
+  const handleUnregisterEvent = async (eventId: string) => {
+    try {
+      await EventService.unregisterEvent(eventId);
+      toast.success('Hủy đăng ký thành công!');
+      
+      // Update local state
+      setEvents(prevEvents => 
+        prevEvents.map(event => 
+          event.id === eventId 
+            ? { ...event, isRegistered: false, currentParticipants: event.currentParticipants - 1 }
+            : event
+        )
+      );
+    } catch (err: any) {
+      toast.error(err.message || 'Không thể hủy đăng ký');
+    }
+  };
+
+  const handleSearch = () => {
+    loadEvents();
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedEventType('');
+    setSelectedMode('');
+    setFilters({});
+  };
+
+  const getEventStatusIcon = (status: string) => {
+    if (!status || typeof status !== 'string') {
+      return <Clock className="w-4 h-4 text-gray-500" />;
+    }
+    
+    switch (status.toLowerCase()) {
+      case 'open':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'closed':
+        return <XCircle className="w-4 h-4 text-red-500" />;
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-gray-500" />;
+      case 'cancelled':
+        return <AlertCircle className="w-4 h-4 text-red-600" />;
+      default:
+        return <Clock className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  const getEventTypeIcon = (eventType: string) => {
+    if (!eventType || typeof eventType !== 'string') {
+      return <Calendar className="w-5 h-5 text-gray-500" />;
+    }
+    
+    switch (eventType.toLowerCase()) {
+      case 'tournament':
+        return <Trophy className="w-5 h-5 text-yellow-500" />;
+      case 'meetup':
+        return <Users className="w-5 h-5 text-blue-500" />;
+      case 'workshop':
+        return <GraduationCap className="w-5 h-5 text-green-500" />;
+      case 'online':
+        return <Globe className="w-5 h-5 text-purple-500" />;
+      case 'offline':
+        return <Building2 className="w-5 h-5 text-orange-500" />;
+      default:
+        return <Calendar className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-800 rounded w-1/4 mb-6"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="bg-gray-800 rounded-lg p-6">
+                  <div className="h-4 bg-gray-700 rounded w-3/4 mb-4"></div>
+                  <div className="h-3 bg-gray-700 rounded w-1/2 mb-2"></div>
+                  <div className="h-3 bg-gray-700 rounded w-2/3"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center py-12">
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-2">Lỗi tải sự kiện</h2>
+            <p className="text-gray-400 mb-6">{error}</p>
+            <button
+              onClick={loadEvents}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+            >
+              Thử lại
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 lg:p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl lg:text-3xl font-bold text-white mb-2">
-          Sự kiện & Giải đấu 🏆
-        </h1>
-        <p className="text-gray-400">Tham gia các giải đấu và sự kiện esports hấp dẫn</p>
-      </div>
-
-      {/* Search and Filter */}
-      <div className="flex flex-col lg:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Tìm sự kiện theo tên, game, địa điểm..."
-            className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-          />
+    <div className="min-h-screen bg-gray-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">Sự Kiện Gaming</h1>
+          <p className="text-gray-400">Khám phá và tham gia các sự kiện gaming thú vị</p>
         </div>
-        <div className="flex space-x-3">
-          <button className="flex items-center space-x-2 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
-            <Filter className="w-5 h-5" />
-            <span>Lọc</span>
-          </button>
-          <button className="flex items-center space-x-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
-            <Plus className="w-5 h-5" />
-            <span>Tạo sự kiện</span>
-          </button>
-        </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex space-x-1 mb-6 bg-gray-800 rounded-lg p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-gray-700'
-            }`}
-          >
-            <span>{tab.label}</span>
-            {tab.count && (
-              <span className="bg-gray-600 text-xs px-2 py-1 rounded-full">
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+        {/* Search and Filters */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-8">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm sự kiện..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  className="w-full bg-gray-700 text-white pl-10 pr-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
 
-      {/* Content */}
-      {activeTab === 'upcoming' && (
-        <div className="space-y-6">
-          {/* Featured Event */}
-          {upcomingEvents.filter(e => e.featured).map((event) => (
-            <div key={event.id} className="bg-gradient-to-r from-purple-900/50 to-indigo-900/50 rounded-xl border border-purple-500/30 overflow-hidden">
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-2">
-                    <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-3 py-1 rounded-full text-sm font-bold">
-                      ⭐ FEATURED
-                    </span>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(event.status)}`}>
-                      {event.status}
-                    </span>
-                  </div>
-                  <div className="flex space-x-2">
-                    <button className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
-                      <Heart className="w-5 h-5 text-gray-400 hover:text-red-400" />
-                    </button>
-                    <button className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
-                      <Share className="w-5 h-5 text-gray-400 hover:text-white" />
-                    </button>
-                  </div>
+            {/* Filter Toggle */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg transition-colors"
+            >
+              <Filter className="w-5 h-5" />
+              Bộ lọc
+            </button>
+
+            {/* Search Button */}
+            <button
+              onClick={handleSearch}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors"
+            >
+              Tìm kiếm
+            </button>
+          </div>
+
+          {/* Filters Panel */}
+          {showFilters && (
+            <div className="mt-6 pt-6 border-t border-gray-700">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Event Type Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Loại sự kiện
+                  </label>
+                  <select
+                    value={selectedEventType}
+                    onChange={(e) => setSelectedEventType(e.target.value)}
+                    className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  >
+                    {eventTypes.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.icon} {type.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <div className="grid lg:grid-cols-2 gap-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-white mb-3">{event.title}</h2>
-                    <p className="text-gray-300 mb-4">{event.description}</p>
-                    
-                    <div className="space-y-3 mb-6">
-                      <div className="flex items-center space-x-3 text-gray-300">
-                        <Calendar className="w-5 h-5 text-indigo-400" />
-                        <span>{event.date} lúc {event.time}</span>
-                      </div>
-                      <div className="flex items-center space-x-3 text-gray-300">
-                        <Clock className="w-5 h-5 text-indigo-400" />
-                        <span>Thời gian: {event.duration}</span>
-                      </div>
-                      <div className="flex items-center space-x-3 text-gray-300">
-                        <MapPin className="w-5 h-5 text-indigo-400" />
-                        <span>{event.location}</span>
-                      </div>
-                      <div className="flex items-center space-x-3 text-gray-300">
-                        <Users className="w-5 h-5 text-indigo-400" />
-                        <span>{event.participants}/{event.maxParticipants} người tham gia</span>
-                      </div>
-                      <div className="flex items-center space-x-3 text-gray-300">
-                        <Trophy className="w-5 h-5 text-indigo-400" />
-                        <span>Giải thưởng: {event.prize}</span>
-                      </div>
-                    </div>
+                {/* Mode Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Chế độ
+                  </label>
+                  <select
+                    value={selectedMode}
+                    onChange={(e) => setSelectedMode(e.target.value)}
+                    className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  >
+                    {modes.map((mode) => (
+                      <option key={mode.value} value={mode.value}>
+                        {mode.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    <div className="flex flex-wrap gap-2 mb-6">
-                      {event.tags.map((tag, index) => (
-                        <span key={index} className="bg-gray-700 text-gray-300 px-3 py-1 rounded-full text-sm">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="flex space-x-3">
-                      <button className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-3 rounded-lg font-medium transition-all">
-                        Đăng ký ngay
-                      </button>
-                      <button className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg transition-colors">
-                        <Bell className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="relative">
-                    <img 
-                      src={event.image} 
-                      alt={event.title}
-                      className="w-full h-64 lg:h-full object-cover rounded-lg"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent rounded-lg"></div>
-                    <div className="absolute bottom-4 left-4 text-white">
-                      <p className="text-sm opacity-80">Tổ chức bởi</p>
-                      <p className="font-medium">{event.organizer}</p>
-                    </div>
-                  </div>
+                {/* Clear Filters */}
+                <div className="flex items-end">
+                  <button
+                    onClick={clearFilters}
+                    className="w-full bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    Xóa bộ lọc
+                  </button>
                 </div>
               </div>
             </div>
-          ))}
+          )}
+        </div>
 
-          {/* Regular Events */}
-          <div className="grid lg:grid-cols-2 gap-6">
-            {upcomingEvents.filter(e => !e.featured).map((event) => (
-              <div key={event.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-colors">
-                <div className="flex items-start justify-between mb-4">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(event.status)}`}>
-                    {event.status}
-                  </span>
-                  <div className="flex space-x-2">
-                    <button className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
-                      <Heart className="w-4 h-4 text-gray-400 hover:text-red-400" />
+        {/* Events Grid */}
+        {events.length === 0 ? (
+          <div className="text-center py-12">
+            <Calendar className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-white mb-2">Không có sự kiện nào</h3>
+            <p className="text-gray-400">Thử thay đổi bộ lọc để tìm thêm sự kiện</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {events.map((event) => (
+              <div key={event.id} className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors">
+                {/* Event Header */}
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      {getEventTypeIcon(event.eventType)}
+                      <div>
+                        <h3 className="text-lg font-semibold text-white line-clamp-2">
+                          {event.title}
+                        </h3>
+                        <p className="text-sm text-gray-400 capitalize">
+                          {event.eventType} • {event.mode}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {getEventStatusIcon(event.status)}
+                      <span className={`text-xs font-medium ${EventService.getEventStatusColor(event.status)}`}>
+                        {event.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Event Description */}
+                  <p className="text-gray-300 text-sm mb-4 line-clamp-3">
+                    {event.description}
+                  </p>
+
+                  {/* Event Details */}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <Clock className="w-4 h-4" />
+                      <span>{EventService.formatEventDate(event.startDate)}</span>
+                    </div>
+                    
+                    {event.location && (
+                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <MapPin className="w-4 h-4" />
+                        <span>{event.location}</span>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <Users className="w-4 h-4" />
+                      <span>
+                        {event.currentParticipants}
+                        {event.maxParticipants && ` / ${event.maxParticipants}`} người tham gia
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Community */}
+                  {event.communityName && (
+                    <div className="mb-4">
+                      <span className="inline-block bg-blue-600/20 text-blue-400 text-xs px-2 py-1 rounded">
+                        {event.communityName}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Action Button */}
+                  <div className="flex gap-2">
+                    {event.isRegistered ? (
+                      <button
+                        onClick={() => handleUnregisterEvent(event.id)}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Hủy đăng ký
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleRegisterEvent(event.id)}
+                        disabled={event.status !== 'Open'}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Đăng ký
+                      </button>
+                    )}
+                    
+                    <button className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                      Chi tiết
+                      <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
-                </div>
-
-                <h3 className="text-xl font-bold text-white mb-2">{event.title}</h3>
-                <p className="text-gray-400 text-sm mb-4">{event.description}</p>
-
-                <div className="space-y-2 mb-4 text-sm">
-                  <div className="flex items-center space-x-2 text-gray-300">
-                    <Calendar className="w-4 h-4 text-indigo-400" />
-                    <span>{event.date} • {event.time}</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-gray-300">
-                    <MapPin className="w-4 h-4 text-indigo-400" />
-                    <span>{event.location}</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-gray-300">
-                    <Users className="w-4 h-4 text-indigo-400" />
-                    <span>{event.participants}/{event.maxParticipants} người</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-1 mb-4">
-                  {event.tags.slice(0, 2).map((tag, index) => (
-                    <span key={index} className="bg-gray-700 text-gray-300 px-2 py-1 rounded text-xs">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="flex space-x-2">
-                  <button className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    event.isRegistered
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                  }`}>
-                    {event.isRegistered ? 'Đã đăng ký' : 'Đăng ký'}
-                  </button>
-                  <button className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-lg transition-colors">
-                    <ExternalLink className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {activeTab === 'my-events' && (
-        <div className="space-y-4">
-          {myEvents.map((event) => (
-            <div key={event.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-white mb-2">{event.title}</h3>
-                  <div className="flex items-center space-x-4 text-sm text-gray-400">
-                    <div className="flex items-center space-x-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>{event.date} • {event.time}</span>
-                    </div>
-                    <span className="px-2 py-1 bg-gray-700 rounded text-xs">{event.status}</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className={`flex items-center space-x-2 mb-1 ${
-                    event.result === 'Thắng' ? 'text-emerald-400' : 'text-red-400'
-                  }`}>
-                    {event.result === 'Thắng' ? (
-                      <Trophy className="w-5 h-5" />
-                    ) : (
-                      <Target className="w-5 h-5" />
-                    )}
-                    <span className="font-bold">{event.result}</span>
-                  </div>
-                  <p className="text-gray-400 text-sm">{event.placement}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {activeTab === 'create' && (
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h2 className="text-2xl font-bold text-white mb-6">Tạo sự kiện mới</h2>
-            
-            <form className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Tên sự kiện</label>
-                <input
-                  type="text"
-                  placeholder="VD: FPT Valorant Championship 2024"
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Mô tả</label>
-                <textarea
-                  rows={4}
-                  placeholder="Mô tả chi tiết về sự kiện của bạn..."
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="grid lg:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Ngày</label>
-                  <input
-                    type="date"
-                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Giờ</label>
-                  <input
-                    type="time"
-                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">Địa điểm</label>
-                <input
-                  type="text"
-                  placeholder="VD: FPT University HCM hoặc Online"
-                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="grid lg:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Số người tối đa</label>
-                  <input
-                    type="number"
-                    placeholder="64"
-                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2">Giải thưởng</label>
-                  <input
-                    type="text"
-                    placeholder="VD: 10,000,000 VNĐ"
-                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex space-x-4">
-                <button
-                  type="button"
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg font-medium transition-colors"
-                >
-                  Lưu nháp
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium transition-colors"
-                >
-                  Tạo sự kiện
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
-}
+};
+
+export default Events;

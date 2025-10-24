@@ -11,9 +11,14 @@ import {
   Award,
   Zap,
   Smile,
+  Gamepad2,
+  BookOpen,
 } from "lucide-react";
 export const MENU_ITEMS = [
   { id: "dashboard", label: "Trang chủ", icon: Home },
+  { id: "games", label: "Games", icon: Gamepad2 },
+  { id: "my-games", label: "My Games", icon: BookOpen },
+  { id: "quests", label: "Quests", icon: Trophy },
   { id: "communities", label: "Cộng đồng", icon: Users },
   {
     id: "friends",
@@ -27,7 +32,11 @@ export const MENU_ITEMS = [
 
 export const MOBILE_NAV_ITEMS = [
   { id: "dashboard", label: "Trang chủ", icon: Home },
+  { id: "games", label: "Games", icon: Gamepad2 },
+  { id: "my-games", label: "My Games", icon: BookOpen },
+  { id: "quests", label: "Quests", icon: Trophy },
   { id: "communities", label: "Cộng đồng", icon: Users },
+  { id: "friends", label: "Bạn bè", icon: Smile },
   { id: "rooms", label: "Chat", icon: MessageSquare },
   { id: "events", label: "Sự kiện", icon: Calendar },
   { id: "profile", label: "Hồ sơ", icon: User },

@@ -1,28 +1,46 @@
 import axios from "axios";
 import { handleTokenExpiration } from "../utils/authUtils";
+import { API_CONFIG } from "../config/apiConfig";
 
-const BASE_URL = import.meta.env.VITE_REACT_APP_BASE_URL as string;
+// Base URL for PlatformGame backend (Communities, Clubs, Rooms)
+const PLATFORM_GAME_URL = API_CONFIG.PLATFORM_GAME_URL;
+// Base URL for StudentGamerHub backend (Auth, Users)
+const STUDENT_GAMER_HUB_URL = API_CONFIG.STUDENT_GAMER_HUB_URL;
 
 const axiosInstance = axios.create({
-  baseURL: BASE_URL,
+  baseURL: STUDENT_GAMER_HUB_URL,
   withCredentials: false,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Add request interceptor to include token
-axiosInstance.interceptors.request.use(
-  (config) => {
-    config.headers = config.headers || {};
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+// Create separate instance for StudentGamerHub backend
+const authAxiosInstance = axios.create({
+  baseURL: STUDENT_GAMER_HUB_URL,
+  withCredentials: false,
+  headers: {
+    "Content-Type": "application/json",
   },
-  (error) => Promise.reject(error)
-);
+});
+
+// Add request interceptor to include token for both instances
+const addTokenInterceptor = (instance: typeof axiosInstance) => {
+  instance.interceptors.request.use(
+    (config) => {
+      config.headers = config.headers || {};
+      const token = localStorage.getItem("token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
+};
+
+addTokenInterceptor(axiosInstance);
+addTokenInterceptor(authAxiosInstance);
 
 // Flag to prevent multiple refresh token requests
 let isRefreshing = false;
@@ -93,7 +111,7 @@ axiosInstance.interceptors.response.use(
 
       // Call refresh endpoint (adjusted to your API path)
       const response = await axios.post(
-        `${BASE_URL}/Auth/refresh`,
+        `${STUDENT_GAMER_HUB_URL}/Auth/refresh`,
         { refreshToken },
         { withCredentials: true }
       );
@@ -137,3 +155,4 @@ axiosInstance.interceptors.response.use(
 );
 
 export default axiosInstance;
+export { authAxiosInstance };
