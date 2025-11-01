@@ -14,6 +14,7 @@
     "@microsoft/signalr": "^9.0.6",
     "@react-oauth/google": "^0.12.2",
     "@stomp/stompjs": "^7.2.1",
+    "agora-rtc-sdk-ng": "^4.24.0",
     "axios": "^1.12.2",
     "clsx": "^2.0.0",
     "date-fns": "^4.1.0",
