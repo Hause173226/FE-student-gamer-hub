@@ -15,6 +15,7 @@ import friendService, {
   FriendDto,
   FriendRequestDto,
 } from "../services/friendService";
+import { useNavigate } from "react-router-dom";
 
 type TabType = "all" | "online" | "invites" | "sent";
 
@@ -546,6 +547,7 @@ const FriendCard: React.FC<FriendCardProps> = ({
   activeTab,
   onCancel,
 }) => {
+  const navigate = useNavigate();
   const initials = friend.fullName
     .split(" ")
     .map((n) => n[0])
@@ -601,7 +603,19 @@ const FriendCard: React.FC<FriendCardProps> = ({
               )}
               {(activeTab === "all" || activeTab === "online") && (
                 <>
-                  <button className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg transition-colors">
+                  <button
+                    onClick={() =>
+                      navigate(`/chat/dm/${friend.userId}`, {
+                        state: {
+                          userName: friend.userName,
+                          fullName: friend.fullName,
+                          avatarUrl: friend.avatarUrl,
+                        },
+                      })
+                    }
+                    title={`Nhắn tin tới ${friend.fullName}`}
+                    className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg transition-colors"
+                  >
                     <MessageCircle size={18} />
                   </button>
                   <button className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg transition-colors">

@@ -4,6 +4,9 @@ export const API_CONFIG = {
   STUDENT_GAMER_HUB_URL: "https://student-gamer-hub.onrender.com",
   PLATFORM_GAME_URL: "http://localhost:8080",
 
+  // SignalR Hub URL - CORRECT ENDPOINT from Backend
+  CHAT_HUB_URL: "https://student-gamer-hub.onrender.com/ws/chat", // ✅ Correct URL
+
   // API Endpoints
   ENDPOINTS: {
     // Auth endpoints
