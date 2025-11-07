@@ -15,6 +15,7 @@ import friendService, {
   FriendDto,
   FriendRequestDto,
 } from "../services/friendService";
+import { useNavigate } from "react-router-dom";
 import { AudioCallModal } from "../components/AudioCallModal";
 
 type TabType = "all" | "online" | "invites" | "sent";
@@ -29,7 +30,7 @@ const Friends: React.FC = () => {
   const [friendsHasMore, setFriendsHasMore] = useState(false);
 
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestDto[]>(
-      []
+    []
   );
   const [incomingPage, setIncomingPage] = useState(1);
   const [incomingTotalPages, setIncomingTotalPages] = useState(1);
@@ -129,16 +130,16 @@ const Friends: React.FC = () => {
   const displayFriends = friends.filter((friend) => {
     if (!searchQuery) return true;
     return (
-        friend.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        friend.userName?.toLowerCase().includes(searchQuery.toLowerCase())
+      friend.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      friend.userName?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
 
   const displayIncomingRequests = incomingRequests.filter((request) => {
     if (!searchQuery) return true;
     return (
-        request.FullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        request.UserName?.toLowerCase().includes(searchQuery.toLowerCase())
+      request.FullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      request.UserName?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
 
@@ -159,101 +160,145 @@ const Friends: React.FC = () => {
 
   const renderContent = () => {
     const items =
-        activeTab === "invites" ? displayIncomingRequests : displayFriends;
-    const loading =
-        activeTab === "invites" ? incomingLoading : friendsLoading;
+      activeTab === "invites" ? displayIncomingRequests : displayFriends;
+    const loading = activeTab === "invites" ? incomingLoading : friendsLoading;
     const hasData =
-        activeTab === "invites"
-            ? incomingRequests.length > 0
-            : friends.length > 0;
+      activeTab === "invites"
+        ? incomingRequests.length > 0
+        : friends.length > 0;
 
     if (loading && !hasData) {
       return (
-          <div className="flex flex-col items-center justify-center h-64">
-            <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
-            <p className="text-slate-400">Đang tải...</p>
-          </div>
+        <div className="flex flex-col items-center justify-center h-64">
+          <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
+          <p className="text-slate-400">Đang tải...</p>
+        </div>
       );
     }
 
     if (items.length === 0) {
       const msg = getEmptyStateMessage();
       return (
-          <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-            {msg.icon}
-            <p className="mt-2">{msg.title}</p>
-          </div>
+        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+          {msg.icon}
+          <p className="mt-2">{msg.title}</p>
+        </div>
       );
     }
 
     return (
-        <div className="space-y-3">
-          {activeTab === "invites"
-              ? displayIncomingRequests.map((r) => (
-                  <IncomingRequestCard
-                      key={r.UserId}
-                      request={r}
-                      onAccept={handleAcceptIncomingRequest}
-                      onDecline={handleDeclineIncomingRequest}
-                  />
-              ))
-              : displayFriends.map((f) => (
-                  <FriendCard
-                      key={f.userId}
-                      friend={f}
-                      activeTab={activeTab}
-                      onCancel={handleCancelInvite}
-                  />
-              ))}
-        </div>
+      <div className="space-y-3">
+        {activeTab === "invites"
+          ? displayIncomingRequests.map((r) => (
+              <IncomingRequestCard
+                key={r.UserId}
+                request={r}
+                onAccept={handleAcceptIncomingRequest}
+                onDecline={handleDeclineIncomingRequest}
+              />
+            ))
+          : displayFriends.map((f) => (
+              <FriendCard
+                key={f.userId}
+                friend={f}
+                activeTab={activeTab}
+                onCancel={handleCancelInvite}
+              />
+            ))}
+      </div>
     );
   };
 
   const canLoadMore =
-      activeTab === "invites"
-          ? incomingPage < incomingTotalPages
-          : activeTab === "all" || activeTab === "online"
-              ? friendsHasMore
-              : false;
+    activeTab === "invites"
+      ? incomingPage < incomingTotalPages
+      : activeTab === "all" || activeTab === "online"
+      ? friendsHasMore
+      : false;
 
-  const isLoading =
-      activeTab === "invites" ? incomingLoading : friendsLoading;
+  const isLoading = activeTab === "invites" ? incomingLoading : friendsLoading;
 
   return (
-      <div className="flex-1 flex flex-col h-screen bg-slate-900">
-        <div className="bg-slate-800 border-b border-slate-700 p-6">
-          <h1 className="text-2xl font-bold text-white mb-4">Bạn bè 👥</h1>
-          <div className="flex gap-3">
-            <div className="flex-1 relative">
-              <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={20}
-              />
-              <input
-                  type="text"
-                  placeholder="Tìm bạn bè..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-700 text-white pl-10 pr-4 py-3 rounded-lg border border-slate-600 focus:border-indigo-500"
-              />
-            </div>
-            <button className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded-lg flex items-center gap-2">
-              <Filter size={18} /> Lọc
-            </button>
-          </div>
+    <div className="flex-1 flex flex-col h-screen bg-slate-900">
+      <div className="bg-slate-800 border-b border-slate-700 p-6">
+        <h1 className="text-2xl font-bold text-white mb-4">Bạn bè 👥</h1>
+
+        {/* Tabs */}
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          <button
+            onClick={() => setActiveTab("all")}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              activeTab === "all"
+                ? "bg-indigo-600 text-white"
+                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+            }`}
+          >
+            Tất cả
+          </button>
+          <button
+            onClick={() => setActiveTab("online")}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              activeTab === "online"
+                ? "bg-indigo-600 text-white"
+                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+            }`}
+          >
+            Đang online
+          </button>
+          <button
+            onClick={() => setActiveTab("invites")}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              activeTab === "invites"
+                ? "bg-indigo-600 text-white"
+                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+            }`}
+          >
+            Lời mời
+          </button>
+          <button
+            onClick={() => setActiveTab("sent")}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              activeTab === "sent"
+                ? "bg-indigo-600 text-white"
+                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+            }`}
+          >
+            Đã gửi
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">{renderContent()}</div>
-
-        {canLoadMore && !isLoading && (
-            <button
-                onClick={handleLoadMore}
-                className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg mt-4"
-            >
-              Tải thêm
-            </button>
-        )}
+        {/* Search */}
+        <div className="flex gap-3">
+          <div className="flex-1 relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              size={20}
+            />
+            <input
+              type="text"
+              placeholder="Tìm bạn bè..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-700 text-white pl-10 pr-4 py-3 rounded-lg border border-slate-600 focus:border-indigo-500"
+            />
+          </div>
+          <button className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded-lg flex items-center gap-2">
+            <Filter size={18} /> Lọc
+          </button>
+        </div>
       </div>
+
+      <div className="flex-1 overflow-y-auto p-6">{renderContent()}</div>
+
+      {canLoadMore && !isLoading && (
+        <button
+          onClick={handleLoadMore}
+          className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg mt-4"
+        >
+          Tải thêm
+        </button>
+      )}
+    </div>
   );
 };
 
@@ -264,50 +309,50 @@ interface IncomingRequestCardProps {
   onDecline: (userId: string) => void;
 }
 const IncomingRequestCard: React.FC<IncomingRequestCardProps> = ({
-                                                                   request,
-                                                                   onAccept,
-                                                                   onDecline,
-                                                                 }) => {
+  request,
+  onAccept,
+  onDecline,
+}) => {
   const [loading, setLoading] = useState(false);
 
   const initials = request.FullName.slice(0, 2).toUpperCase();
 
   return (
-      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {request.AvatarUrl ? (
-              <img
-                  src={request.AvatarUrl}
-                  alt={request.FullName}
-                  className="w-12 h-12 rounded-full object-cover"
-              />
-          ) : (
-              <div className="w-12 h-12 bg-indigo-600 text-white flex items-center justify-center rounded-full font-bold">
-                {initials}
-              </div>
-          )}
-          <div>
-            <h3 className="text-white font-semibold">{request.FullName}</h3>
-            <p className="text-sm text-slate-400">@{request.UserName}</p>
+    <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 flex items-center justify-between">
+      <div className="flex items-center gap-4">
+        {request.AvatarUrl ? (
+          <img
+            src={request.AvatarUrl}
+            alt={request.FullName}
+            className="w-12 h-12 rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-12 h-12 bg-indigo-600 text-white flex items-center justify-center rounded-full font-bold">
+            {initials}
           </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-              onClick={() => onAccept(request.UserId)}
-              disabled={loading}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
-          >
-            ✓
-          </button>
-          <button
-              onClick={() => onDecline(request.UserId)}
-              disabled={loading}
-              className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg"
-          >
-            ✕
-          </button>
+        )}
+        <div>
+          <h3 className="text-white font-semibold">{request.FullName}</h3>
+          <p className="text-sm text-slate-400">@{request.UserName}</p>
         </div>
       </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onAccept(request.UserId)}
+          disabled={loading}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
+        >
+          ✓
+        </button>
+        <button
+          onClick={() => onDecline(request.UserId)}
+          disabled={loading}
+          className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
   );
 };
 
@@ -318,64 +363,92 @@ interface FriendCardProps {
   onCancel: (userId: string) => void;
 }
 const FriendCard: React.FC<FriendCardProps> = ({
-                                                 friend,
-                                                 activeTab,
-                                                 onCancel,
-                                               }) => {
+  friend,
+  activeTab,
+  onCancel,
+}) => {
+  const navigate = useNavigate();
   const [isCalling, setIsCalling] = useState(false);
 
-  const initials = friend.fullName.slice(0, 2).toUpperCase();
+  const initials = friend.fullName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
   const joinDate = new Date(friend.createdAt).toLocaleDateString("vi-VN");
 
   return (
-      <>
-        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:border-slate-600 flex items-start gap-4">
-          {friend.avatarUrl ? (
-              <img
-                  src={friend.avatarUrl}
-                  alt={friend.fullName}
-                  className="w-16 h-16 rounded-full object-cover"
-              />
-          ) : (
-              <div className="w-16 h-16 bg-indigo-600 text-white flex items-center justify-center rounded-full font-bold text-xl">
-                {initials}
-              </div>
-          )}
+    <>
+      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:border-slate-600 flex items-start gap-4">
+        {friend.avatarUrl ? (
+          <img
+            src={friend.avatarUrl}
+            alt={friend.fullName}
+            className="w-16 h-16 rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-16 h-16 bg-indigo-600 text-white flex items-center justify-center rounded-full font-bold text-xl">
+            {initials}
+          </div>
+        )}
 
-          <div className="flex-1">
-            <h3 className="text-white font-semibold text-lg">{friend.fullName}</h3>
-            <p className="text-slate-400 text-sm">@{friend.userName}</p>
-            <p className="text-slate-500 text-xs mt-1">
-              Bạn bè từ {joinDate}
-            </p>
+        <div className="flex-1">
+          <h3 className="text-white font-semibold text-lg">
+            {friend.fullName}
+          </h3>
+          <p className="text-slate-400 text-sm">@{friend.userName}</p>
+          <p className="text-slate-500 text-xs mt-1">Bạn bè từ {joinDate}</p>
 
+          <div className="flex items-center gap-2 mt-3">
+            {activeTab === "sent" && (
+              <button
+                onClick={() => onCancel(friend.userId)}
+                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+              >
+                Hủy lời mời
+              </button>
+            )}
             {(activeTab === "all" || activeTab === "online") && (
-                <div className="flex gap-2 mt-3">
-                  <button className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg">
-                    <MessageCircle size={18} />
-                  </button>
-                  <button
-                      onClick={() => setIsCalling(true)}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg"
-                  >
-                    <Phone size={18} />
-                  </button>
-                  <button className="bg-slate-700 hover:bg-slate-600 text-white p-2 rounded-lg">
-                    <MoreVertical size={18} />
-                  </button>
-                </div>
+              <>
+                <button
+                  onClick={() =>
+                    navigate(`/chat/dm/${friend.userId}`, {
+                      state: {
+                        userName: friend.userName,
+                        fullName: friend.fullName,
+                        avatarUrl: friend.avatarUrl,
+                      },
+                    })
+                  }
+                  title={`Nhắn tin tới ${friend.fullName}`}
+                  className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-lg transition-colors"
+                >
+                  <MessageCircle size={18} />
+                </button>
+                <button
+                  onClick={() => setIsCalling(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg"
+                >
+                  <Phone size={18} />
+                </button>
+                <button className="bg-slate-700 hover:bg-slate-600 text-white p-2 rounded-lg">
+                  <MoreVertical size={18} />
+                </button>
+              </>
             )}
           </div>
         </div>
+      </div>
 
-        {/* Modal gọi thoại */}
-        <AudioCallModal
-            open={isCalling}
-            onClose={() => setIsCalling(false)}
-            friendName={friend.fullName}
-            channelId={`call-${friend.userId}`}
-        />
-      </>
+      {/* Modal gọi thoại */}
+      <AudioCallModal
+        open={isCalling}
+        onClose={() => setIsCalling(false)}
+        friendName={friend.fullName}
+        channelId={`call-${friend.userId}`}
+      />
+    </>
   );
 };
 

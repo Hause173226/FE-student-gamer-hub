@@ -1,216 +1,137 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Smile, Paperclip, Mic, MicOff } from 'lucide-react';
+import { useState, KeyboardEvent } from "react";
 
 interface ChatInputProps {
-  onSendMessage: (message: string) => void;
-  onTyping?: (isTyping: boolean) => void;
+  onSendMessage: (text: string) => Promise<void>;
+  onTyping?: () => void;
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
-  showEmojiPicker?: boolean;
-  showFileUpload?: boolean;
-  showVoiceMessage?: boolean;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({
+export default function ChatInput({
   onSendMessage,
   onTyping,
   disabled = false,
-  placeholder = "Type a message...",
+  placeholder = "Nhập tin nhắn...",
   maxLength = 1000,
-  showEmojiPicker = true,
-  showFileUpload = true,
-  showVoiceMessage = false
-}) => {
-  const [message, setMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [showEmojis, setShowEmojis] = useState(false);
-  
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout>();
-  const recordingTimeoutRef = useRef<NodeJS.Timeout>();
+}: ChatInputProps) {
+  const [text, setText] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
-  // Auto resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [message]);
+  const handleSend = async () => {
+    const trimmedText = text.trim();
+    if (!trimmedText || disabled || isSending) return;
 
-  // Handle typing detection
-  useEffect(() => {
-    if (message.trim()) {
-      setIsTyping(true);
-      onTyping?.(true);
-      
-      // Clear existing timeout
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      
-      // Set new timeout
-      typingTimeoutRef.current = setTimeout(() => {
-        setIsTyping(false);
-        onTyping?.(false);
-      }, 1000);
-    } else {
-      setIsTyping(false);
-      onTyping?.(false);
-    }
-
-    return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [message, onTyping]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (message.trim() && !disabled) {
-      onSendMessage(message.trim());
-      setMessage('');
+    setIsSending(true);
+    try {
+      await onSendMessage(trimmedText);
+      setText("");
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    } finally {
+      setIsSending(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      handleSend();
     }
   };
 
-  const handleVoiceStart = () => {
-    setIsRecording(true);
-    // TODO: Implement voice recording
-    console.log('🎤 Voice recording started');
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    if (newValue.length <= maxLength) {
+      setText(newValue);
+      onTyping?.();
+    }
   };
-
-  const handleVoiceStop = () => {
-    setIsRecording(false);
-    // TODO: Implement voice recording stop and send
-    console.log('🎤 Voice recording stopped');
-  };
-
-  const handleEmojiSelect = (emoji: string) => {
-    setMessage(prev => prev + emoji);
-    setShowEmojis(false);
-    textareaRef.current?.focus();
-  };
-
-  const handleFileUpload = () => {
-    // TODO: Implement file upload
-    console.log('📎 File upload clicked');
-  };
-
-  const emojis = ['😀', '😂', '😍', '🤔', '👍', '👎', '❤️', '🎉', '🔥', '💯'];
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4">
-      {/* Emoji picker */}
-      {showEmojis && (
-        <div className="absolute bottom-20 left-4 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-10">
-          <div className="grid grid-cols-5 gap-2">
-            {emojis.map((emoji, index) => (
-              <button
-                key={index}
-                onClick={() => handleEmojiSelect(emoji)}
-                className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="flex items-end space-x-2">
-        {/* File upload button */}
-        {showFileUpload && (
-          <button
-            type="button"
-            onClick={handleFileUpload}
-            disabled={disabled}
-            className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-50"
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
-        )}
-
-        {/* Message input */}
-        <div className="flex-1 relative">
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            maxLength={maxLength}
-            disabled={disabled}
-            className="w-full px-4 py-3 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-            rows={1}
-            style={{ minHeight: '44px', maxHeight: '120px' }}
-          />
-          
-          {/* Character count */}
-          {maxLength && (
-            <div className="absolute bottom-1 right-2 text-xs text-gray-400">
-              {message.length}/{maxLength}
-            </div>
-          )}
-        </div>
-
-        {/* Emoji button */}
-        {showEmojiPicker && (
-          <button
-            type="button"
-            onClick={() => setShowEmojis(!showEmojis)}
-            disabled={disabled}
-            className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-50"
-          >
-            <Smile className="w-5 h-5" />
-          </button>
-        )}
-
-        {/* Voice message button */}
-        {showVoiceMessage && (
-          <button
-            type="button"
-            onMouseDown={handleVoiceStart}
-            onMouseUp={handleVoiceStop}
-            onMouseLeave={handleVoiceStop}
-            disabled={disabled}
-            className={`p-2 rounded-full ${
-              isRecording 
-                ? 'bg-red-500 text-white' 
-                : 'text-gray-500 hover:text-gray-700'
-            } disabled:opacity-50`}
-          >
-            {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-          </button>
-        )}
-
-        {/* Send button */}
-        <button
-          type="submit"
-          disabled={!message.trim() || disabled}
-          className="p-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-full transition-colors"
+    <div className="flex items-end gap-3 p-4 bg-slate-800 border-t border-slate-700">
+      {/* Attach button */}
+      <button
+        className="flex-shrink-0 p-2.5 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={disabled}
+        title="Đính kèm file"
+      >
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
         >
-          <Send className="w-5 h-5" />
-        </button>
-      </form>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+          />
+        </svg>
+      </button>
 
-      {/* Typing indicator */}
-      {isTyping && (
-        <div className="text-xs text-gray-500 mt-1">
-          Typing...
-        </div>
-      )}
+      {/* Input area */}
+      <div className="flex-1 relative">
+        <textarea
+          value={text}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={disabled || isSending}
+          className="w-full px-4 py-3 pr-16 bg-slate-700 border border-slate-600 text-white placeholder-slate-400 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-slate-600 disabled:cursor-not-allowed transition-all"
+          rows={1}
+          style={{
+            minHeight: "48px",
+            maxHeight: "120px",
+            overflowY: text.length > 100 ? "auto" : "hidden",
+          }}
+        />
+        {/* Character count */}
+        <span className="absolute right-3 bottom-3 text-xs text-slate-500 pointer-events-none">
+          {text.length}/{maxLength}
+        </span>
+      </div>
+
+      {/* Send button */}
+      <button
+        onClick={handleSend}
+        disabled={!text.trim() || disabled || isSending}
+        className="flex-shrink-0 p-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition-all transform active:scale-95"
+        title="Gửi tin nhắn (Enter)"
+      >
+        {isSending ? (
+          <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+        ) : (
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+            />
+          </svg>
+        )}
+      </button>
     </div>
   );
-};
-
-export default ChatInput;
+}

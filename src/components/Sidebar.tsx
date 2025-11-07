@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Calendar,
   User,
+  Crown,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../contexts/AuthContext";
@@ -43,24 +44,25 @@ export function Sidebar({
 }: SidebarProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  
+
   // Debug user data
   useEffect(() => {
     if (user) {
-      console.log('👤 Sidebar User Data:', user);
-      console.log('📧 User Email:', user.email);
-      console.log('👤 User Name:', user.fullName || user.userName);
-      console.log('🏫 University:', user.university);
-      console.log('⭐ Level:', user.level);
+      console.log("👤 Sidebar User Data:", user);
+      console.log("📧 User Email:", user.email);
+      console.log("👤 User Name:", user.fullName || user.userName);
+      console.log("🏫 University:", user.university);
+      console.log("⭐ Level:", user.level);
     }
   }, [user]);
-  
+
   // Optimized menu structure - group related items
   const mainMenuItems = [
     { id: "dashboard", label: "Trang chủ", icon: Home },
     { id: "games", label: "Games", icon: Gamepad2 },
     { id: "my-games", label: "My Games", icon: BookOpen },
     { id: "quests", label: "Quests", icon: Trophy },
+    { id: "membership", label: "Membership", icon: Crown },
   ];
 
   const socialMenuItems = [
@@ -75,7 +77,7 @@ export function Sidebar({
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
   const [showMediaTest, setShowMediaTest] = useState<boolean>(false);
-  
+
   // Clubs state
   const [clubs, setClubs] = useState<SidebarClub[]>([]);
   const [loadingClubs, setLoadingClubs] = useState<boolean>(false);
@@ -84,13 +86,13 @@ export function Sidebar({
   // Load clubs from API
   const loadClubs = async () => {
     if (loadingClubs) return;
-    
+
     setLoadingClubs(true);
     try {
       const clubsData = await MembershipService.getMembershipTree();
       setClubs(clubsData);
     } catch (error) {
-      console.error('❌ Error loading clubs:', error);
+      console.error("❌ Error loading clubs:", error);
       setClubs([]);
     } finally {
       setLoadingClubs(false);
@@ -99,7 +101,7 @@ export function Sidebar({
 
   const handleMenuClick = (id: string) => {
     // Special handling for rooms (Phòng chat)
-    if (id === 'rooms') {
+    if (id === "rooms") {
       if (!showClubs) {
         loadClubs();
         setShowClubs(true);
@@ -121,9 +123,9 @@ export function Sidebar({
     setIsLoggingOut(true);
     try {
       await logout();
-      navigate('/login');
+      navigate("/login");
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     } finally {
       setIsLoggingOut(false);
       setShowLogoutModal(false);
@@ -136,10 +138,12 @@ export function Sidebar({
 
   return (
     <>
-      <div className={clsx(
-        "fixed left-0 top-0 h-full bg-gray-900 border-r border-gray-700 transition-all duration-300 z-40 flex flex-col",
-        isCollapsed ? "w-16" : "w-64"
-      )}>
+      <div
+        className={clsx(
+          "fixed left-0 top-0 h-full bg-gray-900 border-r border-gray-700 transition-all duration-300 z-40 flex flex-col",
+          isCollapsed ? "w-16" : "w-64"
+        )}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           {!isCollapsed && (
@@ -150,13 +154,18 @@ export function Sidebar({
               <span className="text-lg font-bold text-white">GamerHub</span>
             </div>
           )}
-          
+
           <div className="flex items-center space-x-2">
             <button
               onClick={onCollapseToggle}
               className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition-colors"
             >
-              <ChevronLeft className={clsx("w-4 h-4 transition-transform", isCollapsed && "rotate-180")} />
+              <ChevronLeft
+                className={clsx(
+                  "w-4 h-4 transition-transform",
+                  isCollapsed && "rotate-180"
+                )}
+              />
             </button>
           </div>
         </div>
@@ -164,11 +173,18 @@ export function Sidebar({
         {/* User Profile */}
         <div className="p-4 border-b border-gray-700">
           <div className="flex items-center space-x-3">
-            <div className={clsx(
-              "bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center",
-              isCollapsed ? "w-8 h-8" : "w-10 h-10"
-            )}>
-              <span className={clsx("font-bold text-white", isCollapsed ? "text-xs" : "text-sm")}>
+            <div
+              className={clsx(
+                "bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center",
+                isCollapsed ? "w-8 h-8" : "w-10 h-10"
+              )}
+            >
+              <span
+                className={clsx(
+                  "font-bold text-white",
+                  isCollapsed ? "text-xs" : "text-sm"
+                )}
+              >
                 {user?.fullName?.charAt(0)?.toUpperCase() ||
                   user?.userName?.charAt(0)?.toUpperCase() ||
                   user?.email?.charAt(0)?.toUpperCase() ||
@@ -210,7 +226,12 @@ export function Sidebar({
         )}
 
         {/* Navigation Menu - Grouped Structure */}
-        <nav className={clsx("flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 scroll-smooth", isCollapsed ? "p-2" : "p-4")}>
+        <nav
+          className={clsx(
+            "flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 scroll-smooth",
+            isCollapsed ? "p-2" : "p-4"
+          )}
+        >
           <ul className="space-y-1">
             {/* Main Menu Items */}
             {mainMenuItems.map((item) => {
@@ -221,16 +242,25 @@ export function Sidebar({
                     onClick={() => handleMenuClick(item.id)}
                     className={clsx(
                       "w-full flex items-center rounded-lg text-left transition-colors",
-                      isCollapsed ? "justify-center p-3" : "space-x-3 px-3 py-2",
+                      isCollapsed
+                        ? "justify-center p-3"
+                        : "space-x-3 px-3 py-2",
                       currentView === item.id
                         ? "bg-indigo-600 text-white"
                         : "text-gray-300 hover:bg-gray-700 hover:text-white"
                     )}
                     title={isCollapsed ? item.label : undefined}
                   >
-                    <Icon className={clsx("text-white", isCollapsed ? "w-6 h-6" : "w-5 h-5")} />
+                    <Icon
+                      className={clsx(
+                        "text-white",
+                        isCollapsed ? "w-6 h-6" : "w-5 h-5"
+                      )}
+                    />
                     {!isCollapsed && (
-                      <span className="text-sm font-medium flex-1">{item.label}</span>
+                      <span className="text-sm font-medium flex-1">
+                        {item.label}
+                      </span>
                     )}
                   </button>
                 </li>
@@ -252,13 +282,13 @@ export function Sidebar({
                     <ChevronRight className="w-4 h-4" />
                   )}
                 </button>
-                
+
                 {showSocialMenu && (
                   <div className="ml-6 mt-2 space-y-1">
                     {socialMenuItems.map((item) => {
                       const Icon = item.icon;
-                      const isRooms = item.id === 'rooms';
-                      
+                      const isRooms = item.id === "rooms";
+
                       return (
                         <li key={item.id}>
                           <button
@@ -272,16 +302,17 @@ export function Sidebar({
                             )}
                           >
                             <Icon className="w-4 h-4" />
-                            <span className="text-sm font-medium flex-1">{item.label}</span>
-                            {isRooms && (
-                              showClubs ? (
+                            <span className="text-sm font-medium flex-1">
+                              {item.label}
+                            </span>
+                            {isRooms &&
+                              (showClubs ? (
                                 <ChevronDown className="w-4 h-4" />
                               ) : (
                                 <ChevronRight className="w-4 h-4" />
-                              )
-                            )}
+                              ))}
                           </button>
-                          
+
                           {/* Clubs list for rooms */}
                           {isRooms && showClubs && (
                             <div className="ml-6 mt-2 space-y-1">
@@ -296,7 +327,9 @@ export function Sidebar({
                                     onClick={() => handleClubClick(club.id)}
                                     className="w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors text-gray-400 hover:bg-gray-700 hover:text-white"
                                   >
-                                    <span className="text-lg">{club.avatar}</span>
+                                    <span className="text-lg">
+                                      {club.avatar}
+                                    </span>
                                     <div className="flex-1 min-w-0">
                                       <div className="text-sm font-medium truncate">
                                         {club.name}
@@ -325,17 +358,22 @@ export function Sidebar({
             {/* Profile */}
             <li>
               <button
-                onClick={() => handleMenuClick('profile')}
+                onClick={() => handleMenuClick("profile")}
                 className={clsx(
                   "w-full flex items-center rounded-lg text-left transition-colors",
                   isCollapsed ? "justify-center p-3" : "space-x-3 px-3 py-2",
-                  currentView === 'profile'
+                  currentView === "profile"
                     ? "bg-indigo-600 text-white"
                     : "text-gray-300 hover:bg-gray-700 hover:text-white"
                 )}
                 title={isCollapsed ? "Hồ sơ" : undefined}
               >
-                <User className={clsx("text-white", isCollapsed ? "w-6 h-6" : "w-5 h-5")} />
+                <User
+                  className={clsx(
+                    "text-white",
+                    isCollapsed ? "w-6 h-6" : "w-5 h-5"
+                  )}
+                />
                 {!isCollapsed && (
                   <span className="text-sm font-medium flex-1">Hồ sơ</span>
                 )}
@@ -355,7 +393,7 @@ export function Sidebar({
                 <Video className="w-4 h-4" />
                 <span className="text-sm font-medium">Test Media</span>
               </button>
-              
+
               <button
                 onClick={() => setShowLogoutModal(true)}
                 className="w-full flex items-center space-x-3 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition-colors text-red-400 hover:text-red-300"
@@ -373,7 +411,7 @@ export function Sidebar({
               >
                 <Video className="w-5 h-5" />
               </button>
-              
+
               <button
                 onClick={() => setShowLogoutModal(true)}
                 className="w-full flex justify-center p-3 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition-colors text-red-400 hover:text-red-300"
@@ -406,11 +444,15 @@ export function Sidebar({
                 <AlertCircle className="w-5 h-5 text-red-400" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">Xác nhận đăng xuất</h3>
-                <p className="text-sm text-gray-400">Bạn có chắc chắn muốn đăng xuất?</p>
+                <h3 className="text-lg font-semibold text-white">
+                  Xác nhận đăng xuất
+                </h3>
+                <p className="text-sm text-gray-400">
+                  Bạn có chắc chắn muốn đăng xuất?
+                </p>
               </div>
             </div>
-            
+
             <div className="flex space-x-3">
               <button
                 onClick={() => setShowLogoutModal(false)}

@@ -17,13 +17,17 @@ import { Rooms } from "../pages/Rooms";
 import ClubDetail from "../pages/ClubDetail";
 import Friends from "../pages/Friends";
 import { ViewType } from "../types";
+import ChatPage from "../pages/ChatPage";
+import DebugToken from "../pages/DebugToken";
+import Membership from "../pages/Membership";
+import MembershipSuccess from "../pages/MembershipSuccess";
 
 export const AuthenticatedApp: React.FC = () => {
   const location = useLocation();
-  
+
   // Determine current view from URL
   const getCurrentView = (): ViewType => {
-    const path = location.pathname.split('/')[1] || 'dashboard';
+    const path = location.pathname.split("/")[1] || "dashboard";
     return path as ViewType;
   };
 
@@ -42,12 +46,16 @@ export const AuthenticatedApp: React.FC = () => {
         <Route path="/clubs/:clubId" element={<ClubDetail />} />
         <Route path="/friends" element={<Friends />} />
         <Route path="/rooms" element={<Rooms />} />
+        <Route path="/chat/dm/:otherId" element={<ChatPage />} />
         <Route path="/chat-groups" element={<ChatGroups />} />
         <Route path="/chat/:groupId" element={<DiscordChat />} />
         <Route path="/test-login" element={<TestLogin />} />
         <Route path="/events" element={<Events />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile-settings" element={<ProfileSettings />} />
+        <Route path="/membership" element={<Membership />} />
+        <Route path="/membership/success" element={<MembershipSuccess />} />
+        <Route path="/debug-token" element={<DebugToken />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </MainLayout>
