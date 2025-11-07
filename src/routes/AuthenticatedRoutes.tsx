@@ -19,6 +19,9 @@ import Friends from "../pages/Friends";
 import { ViewType } from "../types";
 import ChatPage from "../pages/ChatPage";
 import DebugToken from "../pages/DebugToken";
+import Membership from "../pages/Membership";
+import MembershipSuccess from "../pages/MembershipSuccess";
+import MembershipConfirm from "../pages/MembershipConfirm";
 
 export const AuthenticatedApp: React.FC = () => {
   const location = useLocation();
@@ -51,6 +54,9 @@ export const AuthenticatedApp: React.FC = () => {
         <Route path="/events" element={<Events />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile-settings" element={<ProfileSettings />} />
+        <Route path="/membership" element={<Membership />} />
+        <Route path="/membership/confirm" element={<MembershipConfirm />} />
+        <Route path="/membership/success" element={<MembershipSuccess />} />
         <Route path="/debug-token" element={<DebugToken />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

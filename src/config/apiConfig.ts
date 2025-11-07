@@ -64,11 +64,6 @@ export const API_CONFIG = {
       PROFILE: "/api/Users/profile",
     },
 
-    // Membership endpoints
-    MEMBERSHIPS: {
-      TREE: "/api/Memberships/tree",
-    },
-
     // Dashboard endpoints
     DASHBOARD: {
       TODAY: "/api/Dashboard/today",
