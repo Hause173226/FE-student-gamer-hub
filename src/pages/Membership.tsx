@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   CheckCircle,
   X,
@@ -8,19 +7,27 @@ import {
   Zap,
   Star,
   ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
 import MembershipService from "../services/membershipService";
 import PaymentService from "../services/paymentService";
 import { MembershipPlanDto, CurrentMembershipDto } from "../types/membership";
 
 const Membership = () => {
-  const navigate = useNavigate();
   const [plans, setPlans] = useState<MembershipPlanDto[]>([]);
   const [currentMembership, setCurrentMembership] =
     useState<CurrentMembershipDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // State cho popup xác nhận
+  const [showConfirmPopup, setShowConfirmPopup] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<MembershipPlanDto | null>(
+    null
+  );
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -52,24 +59,12 @@ const Membership = () => {
       // Bước 1: Gọi POST /api/Payments/buy-membership/{planId}
       const result = await PaymentService.buyMembership(plan.Id);
 
-      // Lưu thông tin để dùng ở trang confirm
-      localStorage.setItem(
-        "payment_intent_data",
-        JSON.stringify({
-          paymentIntentId: result.PaymentIntentId,
-          requiresExternalPayment: result.RequiresExternalPayment,
-          membership: result.Membership,
-          planInfo: {
-            planId: plan.Id,
-            planName: plan.Name,
-            price: plan.Price,
-            description: plan.Description,
-          },
-        })
-      );
+      // Lưu PaymentIntentId và plan để dùng trong popup
+      setPaymentIntentId(result.PaymentIntentId);
+      setSelectedPlan(plan);
 
-      // Chuyển đến trang xác nhận thanh toán
-      navigate("/membership/confirm");
+      // Hiển thị popup xác nhận
+      setShowConfirmPopup(true);
     } catch (err: any) {
       if (err.response?.status === 402) {
         setError("❌ Số dư ví không đủ. Vui lòng nạp thêm tiền.");
@@ -83,6 +78,41 @@ const Membership = () => {
     } finally {
       setPurchasing(null);
     }
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!paymentIntentId || !selectedPlan) {
+      setError("Không tìm thấy thông tin thanh toán");
+      return;
+    }
+
+    try {
+      setConfirming(true);
+      setError(null);
+
+      // Bước 2: Gọi POST /api/Payments/payos/create
+      const payosResult = await PaymentService.createPayOsPayment(
+        paymentIntentId,
+        window.location.origin + "/membership/success"
+      );
+
+      // Redirect đến PayOS
+      window.location.href = payosResult.checkoutUrl;
+    } catch (err: any) {
+      console.error("PayOS payment error:", err);
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Không thể tạo link thanh toán. Vui lòng thử lại."
+      );
+      setConfirming(false);
+    }
+  };
+
+  const handleCancelPopup = () => {
+    setShowConfirmPopup(false);
+    setSelectedPlan(null);
+    setPaymentIntentId(null);
   };
 
   const getPlanIcon = (planName: string) => {
@@ -356,6 +386,108 @@ const Membership = () => {
           </div>
         </div>
       </div>
+
+      {/* Popup Xác nhận Thanh toán */}
+      {showConfirmPopup && selectedPlan && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <ShieldCheck className="w-6 h-6 text-indigo-400" />
+                Xác nhận thanh toán
+              </h3>
+              <button
+                onClick={handleCancelPopup}
+                className="text-slate-400 hover:text-white"
+                disabled={confirming}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Thông tin gói */}
+            <div className="bg-slate-900 rounded-xl p-4 mb-6">
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Gói:</span>
+                  <span className="font-semibold text-white">
+                    {selectedPlan.Name}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Mô tả:</span>
+                  <span className="text-slate-300 text-right text-sm max-w-[200px]">
+                    {selectedPlan.Description}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Giới hạn sự kiện:</span>
+                  <span className="font-semibold text-white">
+                    {selectedPlan.MonthlyEventLimit === -1
+                      ? "Không giới hạn"
+                      : `${selectedPlan.MonthlyEventLimit} sự kiện/tháng`}
+                  </span>
+                </div>
+                <div className="border-t border-slate-700 pt-3 mt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-semibold text-white">
+                      Tổng thanh toán:
+                    </span>
+                    <span className="text-2xl font-bold text-indigo-400">
+                      {formatPrice(selectedPlan.Price)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Error message */}
+            {error && (
+              <div className="mb-4 bg-red-900/50 border border-red-700 rounded-lg p-3 flex items-start gap-2">
+                <X className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <p className="text-red-200 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Info */}
+            <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-3 mb-6">
+              <p className="text-blue-200 text-sm">
+                💳 Bạn sẽ được chuyển đến cổng thanh toán PayOS để hoàn tất giao
+                dịch
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancelPopup}
+                disabled={confirming}
+                className="flex-1 py-3 px-4 rounded-xl font-semibold bg-slate-700 hover:bg-slate-600 text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleConfirmPayment}
+                disabled={confirming}
+                className="flex-1 py-3 px-4 rounded-xl font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {confirming ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Đang xử lý...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-5 h-5" />
+                    <span>Thanh toán</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
