@@ -5,7 +5,7 @@ import {
   MapPin, 
   Star, 
   Shield, 
-  Edit3, 
+  Edit3,
   Save, 
   X,
   Camera,
@@ -104,7 +104,7 @@ const Profile: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">Profile</h1>
             <p className="text-gray-400">Manage your account settings and preferences</p>
-          </div>
+              </div>
           <Link
             to="/profile-settings"
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center"
@@ -112,7 +112,7 @@ const Profile: React.FC = () => {
             <Settings className="h-5 w-5 mr-2" />
             Settings
           </Link>
-        </div>
+            </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Profile Card */}
@@ -125,17 +125,17 @@ const Profile: React.FC = () => {
                     <span className="text-2xl font-bold text-white">
                       {user.fullName?.charAt(0)?.toUpperCase() || user.userName?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
                     </span>
-                  </div>
+                </div>
                   <button className="absolute bottom-0 right-0 bg-gray-700 hover:bg-gray-600 rounded-full p-2 transition-colors">
                     <Camera className="w-4 h-4 text-white" />
-                  </button>
-                </div>
-                
+                </button>
+              </div>
+              
                 <h2 className="text-xl font-bold text-white mb-1">
                   {user.fullName || user.userName || 'Unknown User'}
                 </h2>
                 <p className="text-gray-400 text-sm">@{user.userName || 'username'}</p>
-              </div>
+                </div>
 
               {/* Role & Level */}
               <div className="space-y-4">
@@ -143,21 +143,21 @@ const Profile: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     {getRoleIcon(user.role)}
                     <span className="text-sm font-medium text-gray-300">Role</span>
-                  </div>
+                </div>
                   <span className={`text-sm font-semibold ${getRoleColor(user.role)}`}>
                     {user.role || 'Member'}
                   </span>
-                </div>
+              </div>
 
                 <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <Star className="w-5 h-5 text-yellow-500" />
                     <span className="text-sm font-medium text-gray-300">Level</span>
-                  </div>
+                </div>
                   <span className="text-sm font-semibold text-yellow-400">
                     {user.level || 1}
                   </span>
-                </div>
+            </div>
 
                 <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
                   <div className="flex items-center space-x-2">
@@ -167,10 +167,10 @@ const Profile: React.FC = () => {
                   <span className="text-sm font-semibold text-blue-400">
                     {user.university || 'Not specified'}
                   </span>
-                </div>
-              </div>
             </div>
           </div>
+        </div>
+      </div>
 
           {/* Profile Details */}
           <div className="lg:col-span-2">
@@ -207,7 +207,7 @@ const Profile: React.FC = () => {
 
               <div className="space-y-6">
                 {/* Full Name */}
-                <div>
+            <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Full Name
                   </label>
@@ -225,7 +225,7 @@ const Profile: React.FC = () => {
                       <span className="text-white">{user.fullName || 'Not specified'}</span>
                     </div>
                   )}
-                </div>
+            </div>
 
                 {/* Username */}
                 <div>
@@ -244,23 +244,23 @@ const Profile: React.FC = () => {
                     <div className="flex items-center space-x-3 p-3 bg-gray-700/50 rounded-lg">
                       <User className="w-5 h-5 text-gray-400" />
                       <span className="text-white">@{user.userName || 'username'}</span>
-                    </div>
+          </div>
                   )}
-                </div>
-
+        </div>
+        
                 {/* Email */}
-                <div>
+            <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Email
                   </label>
                   <div className="flex items-center space-x-3 p-3 bg-gray-700/50 rounded-lg">
                     <Mail className="w-5 h-5 text-gray-400" />
                     <span className="text-white">{user.email || 'Not specified'}</span>
-                  </div>
-                </div>
+          </div>
+        </div>
 
                 {/* University */}
-                <div>
+            <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     University
                   </label>
@@ -276,12 +276,12 @@ const Profile: React.FC = () => {
                     <div className="flex items-center space-x-3 p-3 bg-gray-700/50 rounded-lg">
                       <MapPin className="w-5 h-5 text-gray-400" />
                       <span className="text-white">{user.university || 'Not specified'}</span>
-                    </div>
+            </div>
                   )}
-                </div>
+        </div>
 
                 {/* Bio */}
-                <div>
+            <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Bio
                   </label>
@@ -298,35 +298,35 @@ const Profile: React.FC = () => {
                       <span className="text-white">
                         {user.bio || 'No bio available'}
                       </span>
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
+                  )}
+          </div>
+        </div>
+      </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
                 <div className="flex items-center justify-between">
-                  <div>
+                      <div>
                     <p className="text-gray-400 text-sm font-medium">Games Played</p>
                     <p className="text-2xl font-bold text-white">12</p>
-                  </div>
+                      </div>
                   <div className="bg-blue-600/20 rounded-full p-3">
                     <Trophy className="w-6 h-6 text-blue-400" />
-                  </div>
-                </div>
-              </div>
+                    </div>
+            </div>
+          </div>
 
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-400 text-sm font-medium">Quests Completed</p>
                     <p className="text-2xl font-bold text-white">45</p>
-                  </div>
+                </div>
                   <div className="bg-green-600/20 rounded-full p-3">
                     <Award className="w-6 h-6 text-green-400" />
-                  </div>
+                </div>
                 </div>
               </div>
 
@@ -335,16 +335,16 @@ const Profile: React.FC = () => {
                   <div>
                     <p className="text-gray-400 text-sm font-medium">Events Attended</p>
                     <p className="text-2xl font-bold text-white">8</p>
-                  </div>
+                </div>
                   <div className="bg-purple-600/20 rounded-full p-3">
                     <Activity className="w-6 h-6 text-purple-400" />
-                  </div>
-                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+                  </div>
+                </div>
+              </div>
     </div>
   );
 };

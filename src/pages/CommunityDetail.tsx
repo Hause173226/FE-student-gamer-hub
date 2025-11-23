@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, Plus, Search, Filter, Crown, Shield, Loader2, Gamepad2, BookOpen, Music, Code, Trophy } from 'lucide-react';
-import { Community } from '../types/community';
+import { ArrowLeft, Users, Plus, Search, Filter, Crown, Shield, Loader2, Gamepad2, BookOpen, Music, Code, Trophy, UserPlus, UserMinus, UserX, Settings, Trash2 } from 'lucide-react';
+import { Community, CommunityMemberDto } from '../types/community';
 import { Club } from '../types/club';
 import CommunityService from '../services/communityService';
 import ClubService from '../services/clubService';
+import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 export function CommunityDetail() {
   const { communityId } = useParams<{ communityId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   const [community, setCommunity] = useState<Community | null>(null);
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -23,14 +25,30 @@ export function CommunityDetail() {
   });
   const [isCreatingClub, setIsCreatingClub] = useState(false);
   const [lastCreateTime, setLastCreateTime] = useState(0);
+  
+  // Members state
+  const [members, setMembers] = useState<CommunityMemberDto[]>([]);
+  const [recentMembers, setRecentMembers] = useState<CommunityMemberDto[]>([]);
+  const [showMembers, setShowMembers] = useState(false);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
-    loadCommunityAndClubs();
+    if (communityId) {
+      loadCommunityAndClubs();
+    }
   }, [communityId]);
 
   // Update countdown every second
   useEffect(() => {
-    if (!canCreateClub()) {
+    const checkCanCreate = () => {
+      const now = Date.now();
+      const timeSinceLastCreate = now - lastCreateTime;
+      const minInterval = 2000; // 2 seconds minimum between requests
+      return timeSinceLastCreate >= minInterval;
+    };
+
+    if (!checkCanCreate()) {
       const interval = setInterval(() => {
         // Force re-render to update countdown
         setLastCreateTime(prev => prev);
@@ -53,6 +71,14 @@ export function CommunityDetail() {
       const clubsData = await ClubService.getClubsByCommunityId(communityId);
       setClubs(clubsData);
       
+      // Load recent members
+      try {
+        const recent = await CommunityService.getRecentMembers(communityId, 5);
+        setRecentMembers(recent);
+      } catch (error) {
+        console.error('❌ Error loading recent members:', error);
+      }
+      
       console.log('✅ Loaded community:', communityData);
       console.log('✅ Loaded clubs:', clubsData);
     } catch (error) {
@@ -63,18 +89,116 @@ export function CommunityDetail() {
     }
   };
 
+  const loadMembers = async () => {
+    if (!communityId) return;
+    
+    setLoadingMembers(true);
+    try {
+      const result = await CommunityService.getCommunityMembers(communityId, {
+        limit: 50,
+      });
+      setMembers(result.members);
+    } catch (error) {
+      console.error('❌ Error loading members:', error);
+      toast.error('Không thể tải danh sách thành viên');
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  const handleJoinCommunity = async () => {
+    if (!communityId) return;
+    
+    setIsJoining(true);
+    try {
+      const updatedCommunity = await CommunityService.joinCommunity(communityId);
+      setCommunity(updatedCommunity);
+      toast.success('Đã tham gia cộng đồng thành công!');
+      
+      // Reload recent members
+      try {
+        const recent = await CommunityService.getRecentMembers(communityId, 5);
+        setRecentMembers(recent);
+      } catch (error) {
+        console.error('❌ Error loading recent members:', error);
+      }
+    } catch (error: any) {
+      console.error('❌ Error joining community:', error);
+      toast.error(error.message || 'Không thể tham gia cộng đồng');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!communityId) return;
+    
+    if (!confirm('Bạn có chắc chắn muốn xóa thành viên này khỏi cộng đồng?')) {
+      return;
+    }
+    
+    try {
+      await CommunityService.removeMember(communityId, userId);
+      toast.success('Đã xóa thành viên khỏi cộng đồng');
+      
+      // Reload members and community
+      await loadMembers();
+      await loadCommunityAndClubs();
+    } catch (error: any) {
+      console.error('❌ Error removing member:', error);
+      toast.error(error.message || 'Không thể xóa thành viên');
+    }
+  };
+
   const handleJoinClub = async (clubId: string | number) => {
     try {
-      await ClubService.joinClub(clubId.toString()); // Convert to string for API
-      setClubs(prev => prev.map(club => 
-        club.id === clubId 
-          ? { ...club, isJoined: true, membersCount: club.membersCount + 1 }
-          : club
-      ));
-      toast.success('Đã tham gia club!');
-    } catch (error) {
+      // Validate clubId
+      const validClubId = clubId.toString().trim();
+      if (!validClubId) {
+        toast.error('Club ID không hợp lệ');
+        return;
+      }
+
+      console.log(`🔄 Attempting to join club: ${validClubId}`);
+      console.log(`📋 Club details:`, clubs.find(c => c.id === validClubId || c.id === clubId));
+      
+      await ClubService.joinClub(validClubId);
+      
+      // Update local state
+      setClubs(prev => prev.map(club => {
+        const clubIdMatch = club.id === validClubId || club.id === clubId || club.id?.toString() === validClubId;
+        if (clubIdMatch) {
+          return { ...club, isJoined: true, membersCount: (club.membersCount || 0) + 1 };
+        }
+        return club;
+      }));
+      
+      toast.success('Đã tham gia club thành công!');
+    } catch (error: any) {
       console.error('❌ Error joining club:', error);
-      toast.error('Không thể tham gia club');
+      console.error('❌ Error details:', {
+        clubId,
+        message: error?.message,
+        status: error?.response?.status,
+        data: error?.response?.data,
+      });
+      
+      // Display specific error message from service
+      const errorMessage = error?.message || 'Không thể tham gia club';
+      
+      // For 500 errors, show traceId in toast
+      if (error?.response?.status === 500) {
+        const traceId = error.response?.data?.traceId || error.response?.data?.TraceId;
+        if (traceId) {
+          toast.error(`Lỗi server (TraceId: ${traceId}). Vui lòng thử lại sau.`, {
+            duration: 5000,
+          });
+        } else {
+          toast.error(errorMessage, { duration: 5000 });
+        }
+      } else {
+        toast.error(errorMessage);
+      }
     }
   };
 
@@ -188,9 +312,11 @@ export function CommunityDetail() {
 
   // Filter clubs based on search
   const filteredClubs = clubs.filter(club => {
-    const matchesSearch = club.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         club.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    const matchesName = club.name?.toLowerCase().includes(query) || false;
+    const matchesDescription = club.description?.toLowerCase().includes(query) || false;
+    return matchesName || matchesDescription;
   });
 
   if (loading) {
@@ -237,13 +363,13 @@ export function CommunityDetail() {
             <div className="flex items-start justify-between">
               <div className="flex items-start space-x-4">
                 <div className="w-20 h-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                  <span className="text-3xl">{community.avatar}</span>
+                  <span className="text-3xl">{community.avatar || '👥'}</span>
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold text-white mb-2">
-                    {community.name}
+                    {community.name || 'Unnamed Community'}
                   </h1>
-                  <p className="text-gray-400 mb-3">{community.description}</p>
+                  <p className="text-gray-400 mb-3">{community.description || 'Không có mô tả'}</p>
                   <div className="flex items-center space-x-4 text-sm">
                   <div className="flex items-center space-x-2 text-gray-400">
                     {getCommunityIcon(community.category)}
@@ -251,7 +377,7 @@ export function CommunityDetail() {
                   </div>
                     <div className="flex items-center space-x-2 text-gray-400">
                       <Users className="w-4 h-4" />
-                      <span>{community.membersCount.toLocaleString()} thành viên</span>
+                      <span>{(community.membersCount || 0).toLocaleString()} thành viên</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       {community.isPublic ? (
@@ -269,9 +395,144 @@ export function CommunityDetail() {
                   </div>
                 </div>
               </div>
+              
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-3 mt-4">
+                {community.role === 'Admin' && (
+                  <button
+                    onClick={() => navigate(`/communities/${communityId}/settings`)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  >
+                    <Settings className="w-4 h-4" />
+                    <span>Quản lý</span>
+                  </button>
+                )}
+                
+                {!community.role && (
+                  <button
+                    onClick={handleJoinCommunity}
+                    disabled={isJoining}
+                    className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {isJoining ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Đang tham gia...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        <span>Tham gia cộng đồng</span>
+                      </>
+                    )}
+                  </button>
+                )}
+                
+                {community.role && community.role !== 'Admin' && (
+                  <div className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg">
+                    <Users className="w-4 h-4" />
+                    <span>Đã tham gia</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Recent Members Section */}
+        {recentMembers.length > 0 && (
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-white">Thành viên mới tham gia</h2>
+              <button
+                onClick={() => {
+                  setShowMembers(!showMembers);
+                  if (!showMembers && members.length === 0) {
+                    loadMembers();
+                  }
+                }}
+                className="text-indigo-400 hover:text-indigo-300 text-sm"
+              >
+                {showMembers ? 'Ẩn' : 'Xem tất cả'}
+              </button>
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
+              {recentMembers.map((member) => (
+                <div
+                  key={member.UserId}
+                  className="flex items-center space-x-2 bg-gray-700 rounded-lg px-3 py-2"
+                >
+                  <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                    {member.FullName?.[0] || member.UserName?.[0] || 'U'}
+                  </div>
+                  <div>
+                    <div className="text-white text-sm font-medium">
+                      {member.FullName || member.UserName || 'Unknown User'}
+                    </div>
+                    {member.Role === 'Owner' && (
+                      <div className="text-xs text-yellow-400">Chủ sở hữu</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* All Members Section */}
+        {showMembers && (
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-6">
+            <h2 className="text-lg font-bold text-white mb-4">
+              Tất cả thành viên ({members.length})
+            </h2>
+            
+            {loadingMembers ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+              </div>
+            ) : members.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                Chưa có thành viên nào
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {members.map((member) => (
+                  <div
+                    key={member.UserId}
+                    className="flex items-center justify-between bg-gray-700 rounded-lg px-4 py-3"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
+                        {member.FullName?.[0] || member.UserName?.[0] || 'U'}
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">
+                          {member.FullName || member.UserName || 'Unknown User'}
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          {member.Role === 'Owner' && '👑 Chủ sở hữu'}
+                          {member.Role === 'Moderator' && '🛡️ Điều hành viên'}
+                          {member.Role === 'Member' && 'Thành viên'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {community.role === 'Admin' && member.Role !== 'Owner' && member.UserId !== user?.id && (
+                      <button
+                        onClick={() => handleRemoveMember(member.UserId)}
+                        className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Xóa thành viên"
+                      >
+                        <UserX className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Search and Actions */}
         <div className="flex flex-col lg:flex-row gap-4 mb-6">
@@ -331,7 +592,7 @@ export function CommunityDetail() {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className={`w-16 h-16 bg-gradient-to-r ${getClubColor(club)} rounded-xl flex items-center justify-center`}>
-                    <span className="text-2xl">{club.avatar}</span>
+                    <span className="text-2xl">{club.avatar || '🎯'}</span>
                   </div>
                   {club.isJoined ? (
                     <div className="flex items-center space-x-2 text-emerald-400">
@@ -347,17 +608,17 @@ export function CommunityDetail() {
                 </div>
 
                 <h3 className="text-lg font-bold text-white mb-2">
-                  {club.name}
+                  {club.name || 'Unnamed Club'}
                 </h3>
                 
                 <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                  {club.description}
+                  {club.description || 'Không có mô tả'}
                 </p>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-700">
                   <div className="flex items-center space-x-2 text-gray-400 text-sm">
                     <Users className="w-4 h-4" />
-                    <span>{club.membersCount} thành viên</span>
+                    <span>{club.membersCount || 0} thành viên</span>
                   </div>
                 <div className="flex space-x-2">
                   <button

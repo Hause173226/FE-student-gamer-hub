@@ -12,6 +12,7 @@ import {
 import MembershipService from "../services/membershipService";
 import PaymentService from "../services/paymentService";
 import { MembershipPlanDto, CurrentMembershipDto } from "../types/membership";
+import { ContentSkeleton } from "../components/ContentSkeleton";
 
 const Membership = () => {
   const [plans, setPlans] = useState<MembershipPlanDto[]>([]);
@@ -147,10 +148,15 @@ const Membership = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
-          <p className="text-slate-400">Đang tải...</p>
+      <div className="min-h-screen bg-slate-900 text-white">
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 py-16 px-4">
+          <div className="max-w-7xl mx-auto text-center">
+            <div className="h-12 bg-indigo-700 rounded w-1/3 mx-auto skeleton-item mb-4"></div>
+            <div className="h-6 bg-indigo-700 rounded w-1/2 mx-auto skeleton-item" style={{ animationDelay: '100ms' }}></div>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 py-12">
+          <ContentSkeleton type="grid" count={3} />
         </div>
       </div>
     );
@@ -224,7 +230,7 @@ const Membership = () => {
         )}
 
         {/* Membership Plans */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 progressive-list">
           {plans
             .filter((p) => p.IsActive)
             .map((plan) => {

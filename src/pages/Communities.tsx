@@ -19,6 +19,7 @@ import { Community } from "../types/community";
 import CommunityService from "../services/communityService";
 import { DebugInfo } from "../components/DebugInfo";
 import toast from "react-hot-toast";
+import { ContentSkeleton } from "../components/ContentSkeleton";
 
 export function Communities() {
   const navigate = useNavigate();
@@ -41,20 +42,45 @@ export function Communities() {
   const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pagination, setPagination] = useState({
+    page: 0,
+    size: 20,
+    totalCount: 0,
+    totalPages: 0,
+    hasPrevious: false,
+    hasNext: false,
+  });
+  const [orderBy, setOrderBy] = useState<'trending' | 'newest'>('trending');
 
-  // Load communities from API
+  // Load communities from API using discover endpoint
   useEffect(() => {
     loadCommunities();
-  }, []);
+  }, [orderBy]);
 
-  const loadCommunities = async () => {
+  const loadCommunities = async (reset: boolean = false) => {
     setLoading(true);
     try {
-      console.log('🔄 Loading communities from API...');
-      const data = await CommunityService.getAllCommunities();
-      setCommunities(data);
-      console.log('✅ Loaded communities:', data);
-      toast.success(`Đã tải ${data.length} cộng đồng`);
+      console.log('🔄 Loading communities from API...', { searchQuery, orderBy, offset: reset ? 0 : pagination.page * pagination.size });
+      
+      const result = await CommunityService.discoverCommunities({
+        query: searchQuery || undefined,
+        offset: reset ? 0 : pagination.page * pagination.size,
+        limit: pagination.size,
+        orderBy: orderBy,
+      });
+      
+      if (reset) {
+        setCommunities(result.communities);
+      } else {
+        setCommunities(prev => [...prev, ...result.communities]);
+      }
+      
+      setPagination(result.pagination);
+      console.log('✅ Loaded communities:', result);
+      
+      if (reset) {
+        toast.success(`Đã tải ${result.communities.length} cộng đồng`);
+      }
     } catch (error) {
       console.error('❌ Error loading communities:', error);
       toast.error('Không thể tải danh sách cộng đồng. Vui lòng kiểm tra kết nối và đăng nhập lại.');
@@ -62,6 +88,17 @@ export function Communities() {
       setLoading(false);
     }
   };
+
+  // Handle search with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== undefined) {
+        loadCommunities(true);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleCreateCommunity = async () => {
     if (!createForm.name.trim() || !createForm.description.trim()) {
@@ -87,13 +124,7 @@ export function Communities() {
     }
   };
 
-  // Filter communities based on search
-  const filteredCommunities = communities.filter(community => {
-    const matchesSearch = community.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         community.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (community.category && community.category.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesSearch;
-  });
+  // Note: Search is now handled by the API via discover endpoint
 
   const getCommunityIcon = (category?: string) => {
     switch (category) {
@@ -157,47 +188,62 @@ export function Communities() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex space-x-1 mb-6 bg-gray-800 rounded-lg p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setSelectedTab(tab.id)}
-            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              selectedTab === tab.id
-                ? "bg-indigo-600 text-white"
-                : "text-gray-400 hover:text-white hover:bg-gray-700"
-            }`}
+      {/* Tabs and Order By */}
+      <div className="flex flex-col lg:flex-row gap-4 mb-6">
+        <div className="flex space-x-1 bg-gray-800 rounded-lg p-1 flex-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setSelectedTab(tab.id)}
+              className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                selectedTab === tab.id
+                  ? "bg-indigo-600 text-white"
+                  : "text-gray-400 hover:text-white hover:bg-gray-700"
+              }`}
+            >
+              <span>{tab.label}</span>
+              {tab.count && (
+                <span className="bg-gray-600 text-xs px-2 py-1 rounded-full">
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        
+        {/* Order By Selector */}
+        <div className="flex items-center space-x-2">
+          <span className="text-gray-400 text-sm">Sắp xếp:</span>
+          <select
+            value={orderBy}
+            onChange={(e) => {
+              setOrderBy(e.target.value as 'trending' | 'newest');
+              setCommunities([]);
+              setPagination(prev => ({ ...prev, page: 0 }));
+            }}
+            className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-indigo-500"
           >
-            <span>{tab.label}</span>
-            {tab.count && (
-              <span className="bg-gray-600 text-xs px-2 py-1 rounded-full">
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
+            <option value="trending">Phổ biến</option>
+            <option value="newest">Mới nhất</option>
+          </select>
+        </div>
       </div>
 
       {/* Content */}
       {selectedTab === "discover" && (
         <>
           {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <div className="text-center">
-                <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
-                <p className="text-gray-400">Đang tải cộng đồng...</p>
-              </div>
-            </div>
-          ) : filteredCommunities.length === 0 ? (
+            <ContentSkeleton type="grid" count={6} />
+          ) : communities.length === 0 ? (
             <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
               <Gamepad2 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-400 text-lg">Không tìm thấy cộng đồng nào</p>
               <p className="text-gray-500 text-sm mt-2">Thử tìm kiếm với từ khóa khác</p>
                 </div>
           ) : (
-            <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredCommunities.map((community, index) => (
+            <>
+              <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6 progressive-list">
+                {communities.map((community, index) => (
                 <div
                   key={community.id}
                   onClick={() => navigate(`/communities/${community.id}`)}
@@ -245,14 +291,49 @@ export function Communities() {
                   </button>
                 </div>
               ))}
-                      </div>
+              </div>
+              
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-700">
+                  <div className="text-sm text-gray-400">
+                    Hiển thị {communities.length} / {pagination.totalCount} cộng đồng
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        setPagination(prev => ({ ...prev, page: prev.page - 1 }));
+                        loadCommunities(true);
+                      }}
+                      disabled={!pagination.hasPrevious || loading}
+                      className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Trước
+                    </button>
+                    <span className="text-gray-400 text-sm">
+                      Trang {pagination.page + 1} / {pagination.totalPages}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setPagination(prev => ({ ...prev, page: prev.page + 1 }));
+                        loadCommunities(true);
+                      }}
+                      disabled={!pagination.hasNext || loading}
+                      className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Sau
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
 
       {selectedTab === "popular" && (
         <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredCommunities
+          {communities
             .sort((a, b) => b.membersCount - a.membersCount)
             .slice(0, 6)
             .map((community, index) => (
