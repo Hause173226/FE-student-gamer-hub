@@ -112,14 +112,72 @@ export class ClubService {
   // Join club
   static async joinClub(clubId: string): Promise<void> {
     try {
-      console.log(`🔄 Joining club ${clubId}...`);
-      const response = await axiosInstance.post(`/api/Clubs/${clubId}/join`, {});
-      console.log('✅ Joined club:', response.data);
+      // Ensure clubId is a valid GUID string
+      const validClubId = clubId.toString().trim();
+      if (!validClubId) {
+        throw new Error('Club ID không hợp lệ');
+      }
+
+      console.log(`🔄 Joining club...`);
+      console.log(`📋 Club ID received: ${clubId}`);
+      console.log(`📋 Club ID (validated): ${validClubId}`);
+      
+      // Use API_CONFIG endpoint - EXACTLY: /api/Clubs/{clubId}/join
+      const endpoint = API_CONFIG.ENDPOINTS.CLUBS.JOIN(validClubId);
+      console.log(`📡 API Endpoint: ${endpoint}`);
+      console.log(`📡 Full URL: ${axiosInstance.defaults.baseURL}${endpoint}`);
+      
+      // POST request with empty body (backend doesn't require body)
+      // Token will be automatically added by axiosInstance interceptor
+      const response = await axiosInstance.post(endpoint, {});
+      console.log('✅ Joined club successfully:', response.data);
       
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`❌ Error joining club ${clubId}:`, error);
-      throw new Error('Không thể tham gia club');
+      
+      // Handle specific error cases
+      if (error.response) {
+        const status = error.response.status;
+        const errorData = error.response.data;
+        
+        switch (status) {
+          case 400:
+            throw new Error(errorData?.message || 'Dữ liệu không hợp lệ. Vui lòng thử lại.');
+          case 401:
+            throw new Error('Vui lòng đăng nhập để tham gia club');
+          case 403:
+            throw new Error('Bạn không có quyền tham gia club này');
+          case 404:
+            throw new Error('Không tìm thấy club');
+          case 409:
+            throw new Error('Bạn đã là thành viên của club này');
+          case 500:
+            // Log detailed error for debugging
+            const traceId = errorData?.traceId || errorData?.TraceId || 'N/A';
+            const errorMessage = errorData?.message || errorData?.title || errorData?.detail || 'Lỗi server';
+            
+            console.error('Server error details:', {
+              status: status,
+              data: errorData,
+              message: errorMessage,
+              traceId: traceId,
+              url: `/api/Clubs/${clubId}/join`
+            });
+            
+            // Include traceId in error message for support
+            throw new Error(`Lỗi server (TraceId: ${traceId}). Vui lòng thử lại sau hoặc liên hệ admin với TraceId này.`);
+          default:
+            throw new Error(errorData?.message || `Lỗi không xác định (${status}). Vui lòng thử lại.`);
+        }
+      }
+      
+      // Network error or other
+      if (error.request) {
+        throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối internet.');
+      }
+      
+      throw new Error('Không thể tham gia club. Vui lòng thử lại.');
     }
   }
 

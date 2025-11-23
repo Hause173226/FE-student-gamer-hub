@@ -17,6 +17,7 @@ import friendService, {
 } from "../services/friendService";
 import { useNavigate } from "react-router-dom";
 import { AudioCallModal } from "../components/AudioCallModal";
+import { ContentSkeleton } from "../components/ContentSkeleton";
 
 type TabType = "all" | "online" | "invites" | "sent";
 
@@ -169,9 +170,8 @@ const Friends: React.FC = () => {
 
     if (loading && !hasData) {
       return (
-        <div className="flex flex-col items-center justify-center h-64">
-          <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
-          <p className="text-slate-400">Đang tải...</p>
+        <div className="p-6">
+          <ContentSkeleton type="list" count={5} />
         </div>
       );
     }
@@ -187,7 +187,7 @@ const Friends: React.FC = () => {
     }
 
     return (
-      <div className="space-y-3">
+      <div className="space-y-3 progressive-list">
         {activeTab === "invites"
           ? displayIncomingRequests.map((r) => (
               <IncomingRequestCard

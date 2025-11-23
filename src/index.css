@@ -1,3 +1,171 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Clean Page Transition Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.page-transition-fade {
+  animation: fadeIn 0.3s ease-in-out forwards;
+}
+
+/* Animated Header Animations */
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradientShift 8s ease infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-fade-in-up-delay {
+  animation: fadeInUp 0.6s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.animate-fade-in-right {
+  animation: fadeInRight 0.6s ease-out 0.3s forwards;
+  opacity: 0;
+}
+
+/* Progressive Loading Animations */
+@keyframes progressiveFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes progressiveFadeInFast {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeletonPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.progressive-item-hidden {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.progressive-item-visible {
+  animation: progressiveFadeIn 0.4s ease-out forwards;
+}
+
+.progressive-item-fast {
+  animation: progressiveFadeInFast 0.3s ease-out forwards;
+}
+
+.skeleton-item {
+  animation: progressiveFadeIn 0.3s ease-out forwards;
+}
+
+.skeleton-item .animate-pulse {
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+
+/* Staggered animation for lists */
+.progressive-list > * {
+  opacity: 0;
+  animation: progressiveFadeIn 0.4s ease-out forwards;
+}
+
+.progressive-list > *:nth-child(1) { animation-delay: 0ms; }
+.progressive-list > *:nth-child(2) { animation-delay: 50ms; }
+.progressive-list > *:nth-child(3) { animation-delay: 100ms; }
+.progressive-list > *:nth-child(4) { animation-delay: 150ms; }
+.progressive-list > *:nth-child(5) { animation-delay: 200ms; }
+.progressive-list > *:nth-child(6) { animation-delay: 250ms; }
+.progressive-list > *:nth-child(7) { animation-delay: 300ms; }
+.progressive-list > *:nth-child(8) { animation-delay: 350ms; }
+.progressive-list > *:nth-child(9) { animation-delay: 400ms; }
+.progressive-list > *:nth-child(10) { animation-delay: 450ms; }
+.progressive-list > *:nth-child(n+11) { animation-delay: 500ms; }
+
+/* Fast staggered for small lists */
+.progressive-list-fast > * {
+  opacity: 0;
+  animation: progressiveFadeInFast 0.3s ease-out forwards;
+}
+
+.progressive-list-fast > *:nth-child(1) { animation-delay: 0ms; }
+.progressive-list-fast > *:nth-child(2) { animation-delay: 30ms; }
+.progressive-list-fast > *:nth-child(3) { animation-delay: 60ms; }
+.progressive-list-fast > *:nth-child(4) { animation-delay: 90ms; }
+.progressive-list-fast > *:nth-child(5) { animation-delay: 120ms; }
+.progressive-list-fast > *:nth-child(n+6) { animation-delay: 150ms; }
+
+/* Prevent horizontal scroll */
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}

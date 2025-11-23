@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Star, Clock, Trophy, Users, Gamepad2, Edit3, Trash2, Loader2, Search, Filter } from 'lucide-react';
 import GameService, { Game, UserGameInfo } from '../services/gameService';
 import { useAuth } from '../contexts/AuthContext';
+import { ContentSkeleton } from '../components/ContentSkeleton';
 
 const MyGames: React.FC = () => {
   const { user } = useAuth();
@@ -201,10 +202,7 @@ const MyGames: React.FC = () => {
       {/* Games Grid */}
       <div className="max-w-7xl mx-auto p-6">
         {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-green-500" />
-            <span className="ml-2 text-gray-400">Đang tải thư viện games...</span>
-          </div>
+          <ContentSkeleton type="grid" count={8} />
         ) : filteredGames.length === 0 ? (
           <div className="text-center py-12">
             <Gamepad2 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
@@ -219,7 +217,7 @@ const MyGames: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 progressive-list">
             {filteredGames.map((game, index) => (
               <MyGameCard
                 key={game.id || `game-${index}`}
@@ -322,14 +320,22 @@ interface MyGameCardProps {
 }
 
 const MyGameCard: React.FC<MyGameCardProps> = ({ game, onEdit, onRemove }) => {
-  if (!game.userGameInfo) return null;
+  // Show card even if userGameInfo is missing, with fallback values
+  const userGameInfo = game.userGameInfo || {
+    id: game.id || '',
+    inGameName: 'Chưa cập nhật',
+    skillLevel: 1,
+    playTime: 0,
+    isFavorite: false,
+    lastPlayed: new Date().toISOString(),
+  };
 
   return (
     <div className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors">
       {/* Game Image/Icon */}
-      <div className={`h-32 bg-gradient-to-br ${game.color} flex items-center justify-center relative`}>
-        <div className="text-6xl">{game.icon}</div>
-        {game.userGameInfo.isFavorite && (
+      <div className={`h-32 bg-gradient-to-br ${game.color || 'from-gray-600 to-gray-700'} flex items-center justify-center relative`}>
+        <div className="text-6xl">{game.icon || '🎮'}</div>
+        {userGameInfo.isFavorite && (
           <div className="absolute top-2 right-2">
             <Star className="w-6 h-6 text-yellow-400 fill-current" />
           </div>
@@ -339,16 +345,16 @@ const MyGameCard: React.FC<MyGameCardProps> = ({ game, onEdit, onRemove }) => {
       {/* Game Info */}
       <div className="p-4">
         <div className="flex items-start justify-between mb-2">
-          <h3 className="font-semibold text-lg truncate">{game.name}</h3>
+          <h3 className="font-semibold text-lg truncate">{game.name || 'Unknown Game'}</h3>
           <div className="flex gap-1">
             <button
-              onClick={() => onEdit(game.userGameInfo!)}
+              onClick={() => onEdit(userGameInfo)}
               className="p-1 text-gray-400 hover:text-white transition-colors"
             >
               <Edit3 className="w-4 h-4" />
             </button>
             <button
-              onClick={() => onRemove(game.userGameInfo!.id)}
+              onClick={() => onRemove(userGameInfo.id)}
               className="p-1 text-gray-400 hover:text-red-400 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
@@ -359,32 +365,32 @@ const MyGameCard: React.FC<MyGameCardProps> = ({ game, onEdit, onRemove }) => {
         <div className="space-y-2 mb-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-400">In-game:</span>
-            <span className="text-sm font-medium">{game.userGameInfo.inGameName}</span>
+            <span className="text-sm font-medium">{userGameInfo.inGameName}</span>
           </div>
           
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-400">Skill:</span>
-            <span className={`text-sm font-medium ${GameService.getSkillLevelColor(game.userGameInfo.skillLevel)}`}>
-              {GameService.getSkillLevelText(game.userGameInfo.skillLevel)}
+            <span className={`text-sm font-medium ${GameService.getSkillLevelColor(userGameInfo.skillLevel)}`}>
+              {GameService.getSkillLevelText(userGameInfo.skillLevel)}
             </span>
           </div>
 
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-400">Play Time:</span>
-            <span className="text-sm font-medium">{Math.round(game.userGameInfo.playTime / 60)}h</span>
+            <span className="text-sm font-medium">{Math.round(userGameInfo.playTime / 60)}h</span>
           </div>
 
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-400">Last Played:</span>
             <span className="text-sm font-medium">
-              {new Date(game.userGameInfo.lastPlayed).toLocaleDateString()}
+              {new Date(userGameInfo.lastPlayed).toLocaleDateString()}
             </span>
           </div>
         </div>
 
         <div className="flex items-center justify-between text-sm text-gray-500">
-          <span className="bg-gray-700 px-2 py-1 rounded">{game.genre}</span>
-          <span className="bg-gray-700 px-2 py-1 rounded">{game.platform}</span>
+          <span className="bg-gray-700 px-2 py-1 rounded">{game.genre || 'N/A'}</span>
+          <span className="bg-gray-700 px-2 py-1 rounded">{game.platform || 'N/A'}</span>
         </div>
       </div>
     </div>

@@ -30,9 +30,13 @@ export const API_CONFIG = {
     // Community endpoints
     COMMUNITIES: {
       BASE: "/api/Communities",
+      DISCOVER: "/api/Communities/discover",
       BY_ID: (id: string) => `/api/Communities/${id}`,
       JOIN: (id: string) => `/api/Communities/${id}/join`,
       LEAVE: (id: string) => `/api/Communities/${id}/leave`,
+      MEMBERS: (id: string) => `/api/Communities/${id}/members`,
+      RECENT_MEMBERS: (id: string) => `/api/Communities/${id}/members/recent`,
+      REMOVE_MEMBER: (communityId: string, userId: string) => `/api/Communities/${communityId}/members/${userId}`,
     },
 
     // Club endpoints
