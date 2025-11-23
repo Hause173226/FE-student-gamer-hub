@@ -1,0 +1,353 @@
+import {
+  HubConnection,
+  HubConnectionBuilder,
+  HttpTransportType,
+  LogLevel,
+  HubConnectionState,
+} from "@microsoft/signalr";
+import { API_CONFIG } from "../config/apiConfig";
+
+type MsgPayload = {
+  channel: string;
+  fromUserId: string;
+  text: string;
+  id?: string;
+  createdAt?: string;
+};
+
+type HistoryPayload = {
+  channel: string;
+  messages: MsgPayload[]; // BACKEND TRẢ VỀ `messages`, không phải `items`
+  hasMore: boolean;
+  oldestId: string | null;
+};
+
+type PresenceFriendsPayload = { userIds: string[] };
+type PresenceUpdatePayload = { userId: string; online: boolean };
+
+export class SignalRService {
+  private chatUrl: string;
+  private presenceUrl: string;
+  private tokenGetter: () => Promise<string> | string;
+
+  private chatConn?: HubConnection;
+  private presenceConn?: HubConnection;
+
+  private joinedChannels = new Set<string>();
+  private presenceHeartbeatTimer?: ReturnType<typeof setInterval>;
+
+  private msgListeners = new Set<(m: MsgPayload) => void>();
+  private historyListeners = new Set<(h: HistoryPayload) => void>();
+  private presenceFriendsListeners = new Set<
+    (p: PresenceFriendsPayload) => void
+  >();
+  private presenceUpdateListeners = new Set<
+    (p: PresenceUpdatePayload) => void
+  >();
+
+  // Event handlers (minimal pub/sub)
+  onMsg?: (msg: MsgPayload) => void;
+  onHistory?: (history: HistoryPayload) => void;
+  onPresenceFriends?: (p: PresenceFriendsPayload) => void;
+  onPresenceUpdate?: (p: PresenceUpdatePayload) => void;
+
+  constructor(chatHubUrl = "/hubs/chat", presenceHubUrl = "/hubs/presence") {
+    // adjust to full URLs in caller (e.g. `${API_CONFIG.STUDENT_GAMER_HUB_URL}/hubs/chat`)
+    this.chatUrl = chatHubUrl;
+    this.presenceUrl = presenceHubUrl;
+    this.tokenGetter = () => "";
+  }
+
+  initUrls(chatHubUrl: string, presenceHubUrl: string) {
+    this.chatUrl = chatHubUrl;
+    this.presenceUrl = presenceHubUrl;
+  }
+
+  setTokenGetter(getter: () => Promise<string> | string) {
+    this.tokenGetter = getter;
+  }
+
+  // Kiểm tra kết nối
+  isConnected(): boolean {
+    return this.chatConn?.state === HubConnectionState.Connected;
+  }
+
+  // Lấy trạng thái kết nối chat
+  getChatConnectionState(): string {
+    return this.chatConn?.state
+      ? HubConnectionState[this.chatConn.state]
+      : "Disconnected";
+  }
+
+  // Lấy trạng thái kết nối presence
+  getPresenceConnectionState(): string {
+    return this.presenceConn?.state
+      ? HubConnectionState[this.presenceConn.state]
+      : "Disconnected";
+  }
+
+  // Đợi kết nối với timeout
+  async waitForConnection(timeoutMs = 10000): Promise<void> {
+    if (this.isConnected()) return;
+
+    const startTime = Date.now();
+    while (!this.isConnected()) {
+      if (Date.now() - startTime > timeoutMs) {
+        throw new Error("Connection timeout");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
+  // Connect method không tham số - tự lấy URL từ API_CONFIG
+  async connect(): Promise<void> {
+    const chatFullUrl = `${API_CONFIG.STUDENT_GAMER_HUB_URL}/ws/chat`;
+    const presenceFullUrl = `${API_CONFIG.STUDENT_GAMER_HUB_URL}/ws/presence`;
+    return this.connectToUrls(chatFullUrl, presenceFullUrl);
+  }
+
+  private async buildConnection(url: string): Promise<HubConnection> {
+    const accessTokenFactory = async () => {
+      const t = this.tokenGetter();
+      return t instanceof Promise ? await t : t;
+    };
+
+    const retryDelays = [0, 2000, 5000, 10000, 30000];
+
+    const conn = new HubConnectionBuilder()
+      .withUrl(url, {
+        accessTokenFactory,
+        transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling,
+      })
+      .withAutomaticReconnect(retryDelays)
+      .configureLogging(LogLevel.Information)
+      .build();
+
+    conn.onreconnected((connectionId) => {
+      console.info("✅ SignalR reconnected:", url, connectionId);
+    });
+
+    conn.onreconnecting((err) => {
+      console.warn("🔄 SignalR reconnecting:", url, err?.message);
+    });
+
+    conn.onclose((err) => {
+      console.warn("❌ SignalR closed:", url, err?.message);
+    });
+
+    return conn;
+  }
+
+  async connectToUrls(chatFullUrl: string, presenceFullUrl: string) {
+    this.initUrls(chatFullUrl, presenceFullUrl);
+
+    this.chatConn = await this.buildConnection(this.chatUrl);
+    this.presenceConn = await this.buildConnection(this.presenceUrl);
+
+    // Chat handlers
+    this.chatConn.on("msg", (payload: MsgPayload) => {
+      // backward compat
+      this.onMsg?.(payload);
+      // notify listeners
+      this.msgListeners.forEach((fn) => {
+        try {
+          fn(payload);
+        } catch {
+          /* ignore listener error */
+        }
+      });
+    });
+    this.chatConn.on("history", (payload: HistoryPayload) => {
+      this.onHistory?.(payload);
+      this.historyListeners.forEach((fn) => {
+        try {
+          fn(payload);
+        } catch {}
+      });
+    });
+
+    // Presence handlers
+    this.presenceConn.on("presence:friends", (p: PresenceFriendsPayload) => {
+      this.onPresenceFriends?.(p);
+      this.presenceFriendsListeners.forEach((fn) => {
+        try {
+          fn(p);
+        } catch {}
+      });
+    });
+    this.presenceConn.on("presence:update", (p: PresenceUpdatePayload) => {
+      this.onPresenceUpdate?.(p);
+      this.presenceUpdateListeners.forEach((fn) => {
+        try {
+          fn(p);
+        } catch {}
+      });
+    });
+
+    // automatic restore of joined channels on reconnected
+    this.chatConn.onreconnected(async () => {
+      const channels = Array.from(this.joinedChannels);
+      if (channels.length > 0) {
+        try {
+          await this.chatConn!.invoke("JoinChannels", channels);
+          console.info("Restored joined channels:", channels);
+        } catch (e) {
+          console.error("Failed to restore channels:", e);
+        }
+      }
+    });
+
+    // on presence reconnected, restart heartbeat if needed
+    this.presenceConn.onreconnected(async () => {
+      if (this.presenceHeartbeatTimer) {
+        // restart immediate
+        await this.startPresenceHeartbeat();
+      }
+    });
+
+    await this.chatConn.start();
+    await this.presenceConn.start();
+
+    console.info("SignalR connected (chat + presence)");
+  }
+
+  addMsgListener(fn: (m: MsgPayload) => void) {
+    this.msgListeners.add(fn);
+  }
+  removeMsgListener(fn: (m: MsgPayload) => void) {
+    this.msgListeners.delete(fn);
+  }
+
+  addHistoryListener(fn: (h: HistoryPayload) => void) {
+    this.historyListeners.add(fn);
+  }
+  removeHistoryListener(fn: (h: HistoryPayload) => void) {
+    this.historyListeners.delete(fn);
+  }
+
+  addPresenceFriendsListener(fn: (p: PresenceFriendsPayload) => void) {
+    this.presenceFriendsListeners.add(fn);
+  }
+  removePresenceFriendsListener(fn: (p: PresenceFriendsPayload) => void) {
+    this.presenceFriendsListeners.delete(fn);
+  }
+
+  addPresenceUpdateListener(fn: (p: PresenceUpdatePayload) => void) {
+    this.presenceUpdateListeners.add(fn);
+  }
+  removePresenceUpdateListener(fn: (p: PresenceUpdatePayload) => void) {
+    this.presenceUpdateListeners.delete(fn);
+  }
+
+  // Utility: simple rate-limit aware invoke with small backoff retries
+  private async invokeWithRateLimitRetry<T = any>(
+    conn: HubConnection,
+    method: string,
+    args: any[],
+    maxRetries = 4
+  ): Promise<T> {
+    let attempt = 0;
+    let backoff = 250; // ms initial
+    while (true) {
+      try {
+        // @ts-ignore
+        return await conn.invoke<T>(method, ...args);
+      } catch (err: any) {
+        const msg = (err && err.message) || "";
+        if (msg.includes("rate_limited") && attempt < maxRetries) {
+          // short exponential jittered backoff
+          const jitter = Math.floor(Math.random() * 100);
+          await new Promise((r) => setTimeout(r, backoff + jitter));
+          backoff = Math.min(backoff * 2, 2000);
+          attempt++;
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
+  // API methods
+  async sendDm(toUserId: string, text: string) {
+    if (!this.chatConn) throw new Error("Chat connection not initialized");
+    // returns void; server persists internally
+    return this.invokeWithRateLimitRetry(this.chatConn, "SendDm", [
+      toUserId,
+      text,
+    ]);
+  }
+
+  async sendToRoom(roomId: string, text: string) {
+    if (!this.chatConn) throw new Error("Chat connection not initialized");
+    return this.invokeWithRateLimitRetry(this.chatConn, "SendToRoom", [
+      roomId,
+      text,
+    ]);
+  }
+
+  async loadHistory(channel: string, afterId?: string | null, take?: number) {
+    if (!this.chatConn) throw new Error("Chat connection not initialized");
+    // server will reply via "history" event to caller; but if LoadHistory returns the history, handle both
+    try {
+      const result = await this.chatConn.invoke(
+        "LoadHistory",
+        channel,
+        afterId,
+        take
+      );
+      // if server returns payload directly, also return it
+      return result;
+    } catch (err) {
+      // if server pushes via "history", caller listens to onHistory
+      return undefined;
+    }
+  }
+
+  async joinChannels(channels: string[]) {
+    if (!this.chatConn) throw new Error("Chat connection not initialized");
+    await this.chatConn.invoke("JoinChannels", channels);
+    channels.forEach((c) => this.joinedChannels.add(c));
+  }
+
+  async startPresenceHeartbeat(intervalMs = 25_000) {
+    if (!this.presenceConn)
+      throw new Error("Presence connection not initialized");
+    // immediately call once
+    try {
+      await this.presenceConn.invoke("Heartbeat");
+    } catch (e) {
+      console.warn("Heartbeat immediate failed:", e);
+    }
+    if (this.presenceHeartbeatTimer) clearInterval(this.presenceHeartbeatTimer);
+    this.presenceHeartbeatTimer = setInterval(async () => {
+      try {
+        await this.presenceConn!.invoke("Heartbeat");
+      } catch (e) {
+        console.warn("Heartbeat failed:", e);
+      }
+    }, intervalMs);
+  }
+
+  async getOnlineFriends() {
+    if (!this.presenceConn)
+      throw new Error("Presence connection not initialized");
+    return this.presenceConn.invoke("GetOnlineFriends");
+  }
+
+  // utility getters
+  getJoinedChannels() {
+    return Array.from(this.joinedChannels);
+  }
+
+  async disconnect() {
+    try {
+      if (this.chatConn) await this.chatConn.stop();
+      if (this.presenceConn) await this.presenceConn.stop();
+    } catch {}
+    if (this.presenceHeartbeatTimer) clearInterval(this.presenceHeartbeatTimer);
+    this.joinedChannels.clear();
+  }
+}
+
+// export singleton
+export const signalRService = new SignalRService();
