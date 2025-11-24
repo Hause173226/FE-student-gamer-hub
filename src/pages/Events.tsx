@@ -591,12 +591,6 @@ const Events: React.FC = () => {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {getEventStatusIcon(event.status)}
-                      <span className={`text-xs font-medium ${EventService.getEventStatusColor(event.status)}`}>
-                        {event.status}
-                      </span>
-                    </div>
                   </div>
 
                   {/* Event Description */}
@@ -638,40 +632,23 @@ const Events: React.FC = () => {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2 mt-auto">
-                    {/* Organizer: Show Open button if Draft */}
-                    {event.isOrganizer && event.status === 'Draft' && (
-                      <button
-                        onClick={() => handleOpenEvent(event.id)}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 font-semibold"
-                      >
-                        <Play className="w-5 h-5" />
-                        Mở sự kiện
-                      </button>
-                    )}
-
-                    {/* Organizer: Show Edit if Draft or Open */}
-                    {event.isOrganizer && (event.status === 'Draft' || event.status === 'Open') && (
-                      <button
-                        onClick={() => {
-                          setSelectedEvent(event);
-                          setShowEditModal(true);
-                        }}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Edit className="w-4 h-4" />
-                        Chỉnh sửa
-                      </button>
-                    )}
-
-                    {/* Organizer: Show Cancel if Open (not Draft, not Cancelled/Completed) */}
-                    {event.isOrganizer && event.status === 'Open' && (
-                      <button
-                        onClick={() => handleCancelEvent(event.id)}
-                        className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                      >
-                        <XIcon className="w-4 h-4" />
-                        Hủy sự kiện
-                      </button>
+                    {/* Organizer: Show "Bạn là người host" message and Detail button only */}
+                    {event.isOrganizer && (
+                      <>
+                        <div className="flex-1 flex items-center text-sm text-gray-400">
+                          Bạn là người host
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedEvent(event);
+                            setShowDetailModal(true);
+                          }}
+                          className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                        >
+                          Chi tiết
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </>
                     )}
 
                     {/* Regular User: Show Register/Unregister only if event is Open */}
@@ -679,11 +656,11 @@ const Events: React.FC = () => {
                       <>
                         {event.isRegistered ? (
                           <button
-                            onClick={() => handleUnregisterEvent(event.id)}
-                            className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                            disabled
+                            className="flex-1 bg-green-600/50 text-green-300 px-4 py-2 rounded-lg cursor-not-allowed flex items-center justify-center gap-2"
                           >
-                            <XCircle className="w-4 h-4" />
-                            Hủy đăng ký
+                            <CheckCircle className="w-4 h-4" />
+                            Đã đăng ký
                           </button>
                         ) : (
                           <button
@@ -694,20 +671,32 @@ const Events: React.FC = () => {
                             Đăng ký
                           </button>
                         )}
+                        <button
+                          onClick={() => {
+                            setSelectedEvent(event);
+                            setShowDetailModal(true);
+                          }}
+                          className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                        >
+                          Chi tiết
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
                       </>
                     )}
-                    
-                    {/* Detail Button - Always visible */}
-                    <button
-                      onClick={() => {
-                        setSelectedEvent(event);
-                        setShowDetailModal(true);
-                      }}
-                      className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-                    >
-                      Chi tiết
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
+
+                    {/* Detail Button for non-Open events (non-organizer) */}
+                    {!event.isOrganizer && event.status !== 'Open' && (
+                      <button
+                        onClick={() => {
+                          setSelectedEvent(event);
+                          setShowDetailModal(true);
+                        }}
+                        className="w-full bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        Chi tiết
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

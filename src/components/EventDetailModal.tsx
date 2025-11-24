@@ -226,21 +226,11 @@ export function EventDetailModal({ isOpen, onClose, event, onRegister, onUnregis
                 <>
                   {event.isRegistered ? (
                     <button
-                      onClick={handleUnregister}
-                      disabled={loading}
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled
+                      className="flex-1 bg-green-600/50 text-green-300 px-6 py-3 rounded-lg cursor-not-allowed flex items-center justify-center gap-2"
                     >
-                      {loading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Đang xử lý...
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="w-5 h-5" />
-                          Hủy đăng ký
-                        </>
-                      )}
+                      <CheckCircle className="w-5 h-5" />
+                      Đã đăng ký
                     </button>
                   ) : (
                     <button
