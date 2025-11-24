@@ -84,8 +84,11 @@ export const API_CONFIG = {
 
     // Event endpoints
     EVENTS: {
-      BASE: "/api/events",
-      REGISTER: (id: string) => `/api/events/${id}/register`,
+      BASE: "/api/Events",
+      REGISTER: (id: string) => `/api/events/${id}/registrations`,
+      MY_EVENTS: "/api/organizer/events",
+      OPEN: (id: string) => `/api/Events/${id}/open`,
+      CANCEL: (id: string) => `/api/Events/${id}/cancel`,
     },
 
     // Game endpoints

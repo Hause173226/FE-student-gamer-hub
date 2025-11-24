@@ -278,19 +278,34 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Single Box - flies in, shows text, expands to login form, then to dashboard */}
-      <div 
-        className={`transition-all duration-700 ${
-          boxFlewIn ? 'translate-x-0 opacity-100' : '-translate-x-[100vw] opacity-0'
-        } ${
-          showDashboard 
-            ? 'w-full max-w-7xl scale-100' 
-            : showLoginForm 
-              ? 'max-w-md w-full scale-100' 
-              : 'max-w-lg w-full scale-90'
-        }`}
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Video Background */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover z-0"
       >
+        <source src="/Rounded Purple lines Abstract Gradient Background Animation.mp4" type="video/mp4" />
+      </video>
+      
+      {/* Overlay để đảm bảo nội dung dễ đọc */}
+      <div className="absolute inset-0 bg-black/40 z-10"></div>
+      
+      {/* Single Box - flies in, shows text, expands to login form, then to dashboard */}
+      <div className="relative z-20">
+        <div 
+          className={`transition-all duration-700 ${
+            boxFlewIn ? 'translate-x-0 opacity-100' : '-translate-x-[100vw] opacity-0'
+          } ${
+            showDashboard 
+              ? 'w-full max-w-7xl scale-100' 
+              : showLoginForm 
+                ? 'max-w-md w-full scale-100' 
+                : 'max-w-lg w-full scale-90'
+          }`}
+        >
         <div className={`bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 transition-all duration-700 overflow-hidden ${
           showDashboard ? 'min-h-[90vh]' : ''
         }`}>
@@ -649,6 +664,7 @@ const Login: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
