@@ -108,8 +108,14 @@ export class MembershipService {
         "/api/Memberships/tree"
       );
 
+      console.log("📦 Membership tree response:", response.data);
+
+      // Backend trả về PascalCase: Clubs, ClubId, ClubName, Rooms
+      const clubs = response.data.Clubs || [];
+      console.log(`✅ Found ${clubs.length} clubs in response`);
+
       // Transform backend data to frontend format
-      return response.data.clubs.map((club: ClubInfo, index: number) =>
+      return clubs.map((club: ClubInfo, index: number) =>
         this.transformClub(club, index)
       );
     } catch (error) {
@@ -136,13 +142,14 @@ export class MembershipService {
 
   /**
    * Transform backend ClubInfo to frontend SidebarClub
+   * Backend trả về PascalCase: ClubId, ClubName, Rooms
    */
   private static transformClub(club: ClubInfo, index: number): SidebarClub {
     return {
-      id: club.clubId,
-      name: club.clubName,
-      roomsCount: club.rooms?.length || 0,
-      avatar: this.getClubAvatar(club.clubName),
+      id: club.ClubId,
+      name: club.ClubName,
+      roomsCount: club.Rooms?.length || 0,
+      avatar: this.getClubAvatar(club.ClubName),
       color: this.getClubColor(index),
     };
   }

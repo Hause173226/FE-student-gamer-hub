@@ -48,22 +48,23 @@ export interface CancelMembershipResponse {
 }
 
 // Membership Tree types based on API response
+// Backend trả về PascalCase!
 export interface RoomInfo {
-  roomId: string;
-  roomName: string;
+  RoomId: string;
+  RoomName: string;
 }
 
 export interface ClubInfo {
-  clubId: string;
-  clubName: string;
-  rooms: RoomInfo[];
+  ClubId: string;
+  ClubName: string;
+  Rooms: RoomInfo[];
 }
 
 export interface MembershipTreeResponse {
-  clubs: ClubInfo[];
-  overview: {
-    clubCount: number;
-    roomCount: number;
+  Clubs: ClubInfo[];
+  Overview: {
+    ClubCount: number;
+    RoomCount: number;
   };
 }
 
