@@ -66,6 +66,10 @@
   animation: shimmer 3s ease-in-out infinite;
 }
 
+.animate-fade-in {
+  animation: fadeIn 0.9s ease-out forwards;
+}
+
 .animate-fade-in-up {
   animation: fadeInUp 0.6s ease-out forwards;
 }
