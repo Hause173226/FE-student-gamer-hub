@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Search,
   Filter,
@@ -20,6 +20,17 @@ import { AudioCallModal } from "../components/AudioCallModal";
 
 type TabType = "all" | "online" | "invites" | "sent";
 
+// Cache key for localStorage
+const FRIENDS_CACHE_KEY = "friends_cache";
+const FRIENDS_CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+
+interface FriendsCache {
+  friends: FriendDto[];
+  timestamp: number;
+  cursor?: string;
+  hasMore: boolean;
+}
+
 const Friends: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -36,34 +47,79 @@ const Friends: React.FC = () => {
   const [incomingTotalPages, setIncomingTotalPages] = useState(1);
   const [incomingLoading, setIncomingLoading] = useState(false);
 
-  useEffect(() => {
-    if (activeTab === "all" || activeTab === "online") {
-      loadFriends();
-    } else if (activeTab === "invites") {
-      loadIncomingRequests(1);
-    }
-  }, [activeTab]);
+  // Debounce search query
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
 
-  const loadFriends = async (cursor?: string) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const loadFriends = useCallback(async (cursor?: string) => {
     try {
       setFriendsLoading(true);
+
+      // Try to load from cache if it's the first load and no cursor
+      if (!cursor) {
+        const cached = getCachedFriends();
+        if (cached) {
+          setFriends(cached.friends);
+          setFriendsNextCursor(cached.cursor);
+          setFriendsHasMore(cached.hasMore);
+          setFriendsLoading(false);
+
+          // Refresh in background
+          friendService
+            .getAllFriends(undefined, 20)
+            .then((result) => {
+              setFriends(result.items || []);
+              setFriendsNextCursor(result.nextCursor);
+              setFriendsHasMore(result.hasMore);
+              cacheFriends(
+                result.items || [],
+                result.nextCursor,
+                result.hasMore
+              );
+            })
+            .catch((err) => {
+              console.warn("Background refresh failed:", err);
+            });
+          return;
+        }
+      }
+
       const result = await friendService.getAllFriends(cursor, 20);
       if (cursor) {
         setFriends((prev) => [...prev, ...result.items]);
       } else {
         setFriends(result.items || []);
+        // Cache only first page
+        cacheFriends(result.items || [], result.nextCursor, result.hasMore);
       }
       setFriendsNextCursor(result.nextCursor);
       setFriendsHasMore(result.hasMore);
     } catch (err) {
       console.error("Load friends error:", err);
-      setFriends([]);
+      // Try to use cache on error
+      if (!cursor) {
+        const cached = getCachedFriends();
+        if (cached) {
+          setFriends(cached.friends);
+          setFriendsNextCursor(cached.cursor);
+          setFriendsHasMore(cached.hasMore);
+        } else {
+          setFriends([]);
+        }
+      }
     } finally {
       setFriendsLoading(false);
     }
-  };
+  }, []);
 
-  const loadIncomingRequests = async (page: number = 1) => {
+  const loadIncomingRequests = useCallback(async (page: number = 1) => {
     try {
       setIncomingLoading(true);
       const result = await friendService.getIncomingRequests({
@@ -85,7 +141,16 @@ const Friends: React.FC = () => {
     } finally {
       setIncomingLoading(false);
     }
-  };
+  }, []);
+
+  // Load data when tab changes
+  useEffect(() => {
+    if (activeTab === "all" || activeTab === "online") {
+      loadFriends();
+    } else if (activeTab === "invites") {
+      loadIncomingRequests(1);
+    }
+  }, [activeTab, loadFriends, loadIncomingRequests]);
 
   const handleLoadMore = () => {
     if (activeTab === "invites") {
@@ -99,49 +164,79 @@ const Friends: React.FC = () => {
     }
   };
 
-  const handleAcceptIncomingRequest = async (userId: string) => {
-    try {
-      await friendService.acceptFriend(userId);
-      setIncomingRequests((prev) => prev.filter((r) => r.UserId !== userId));
-      loadFriends();
-    } catch (err: any) {
-      alert(err?.response?.data?.message || "Không thể chấp nhận lời mời");
-    }
-  };
+  const handleAcceptIncomingRequest = useCallback(
+    async (userId: string) => {
+      try {
+        await friendService.acceptFriend(userId);
+        // Optimistic update - remove immediately
+        setIncomingRequests((prev) => prev.filter((r) => r.UserId !== userId));
+        // Refresh friends list in background
+        loadFriends().catch((err) => {
+          console.error("Failed to refresh friends:", err);
+        });
+      } catch (err: unknown) {
+        console.error("Accept friend error:", err);
+        const errorMessage =
+          err && typeof err === "object" && "response" in err
+            ? (err.response as { data?: { message?: string } })?.data?.message
+            : undefined;
+        alert(errorMessage || "Không thể chấp nhận lời mời");
+      }
+    },
+    [loadFriends]
+  );
 
-  const handleDeclineIncomingRequest = async (userId: string) => {
+  const handleDeclineIncomingRequest = useCallback(async (userId: string) => {
     try {
       await friendService.declineFriend(userId);
+      // Optimistic update - remove immediately
       setIncomingRequests((prev) => prev.filter((r) => r.UserId !== userId));
-    } catch (err: any) {
-      alert(err?.response?.data?.message || "Không thể từ chối lời mời");
+    } catch (err: unknown) {
+      console.error("Decline friend error:", err);
+      const errorMessage =
+        err && typeof err === "object" && "response" in err
+          ? (err.response as { data?: { message?: string } })?.data?.message
+          : undefined;
+      alert(errorMessage || "Không thể từ chối lời mời");
     }
-  };
+  }, []);
 
-  const handleCancelInvite = async (userId: string) => {
+  const handleCancelInvite = useCallback(async (userId: string) => {
     try {
       await friendService.cancelFriendInvite(userId);
       setFriends((prev) => prev.filter((f) => f.userId !== userId));
-    } catch (err: any) {
-      alert(err?.response?.data?.message || "Không thể hủy lời mời");
+    } catch (err: unknown) {
+      const errorMessage =
+        err && typeof err === "object" && "response" in err
+          ? (err.response as { data?: { message?: string } })?.data?.message
+          : undefined;
+      alert(errorMessage || "Không thể hủy lời mời");
     }
-  };
+  }, []);
 
-  const displayFriends = friends.filter((friend) => {
-    if (!searchQuery) return true;
-    return (
-      friend.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      friend.userName?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  });
+  // Memoize filtered friends for performance
+  const displayFriends = useMemo(() => {
+    if (!debouncedSearchQuery) return friends;
+    const query = debouncedSearchQuery.toLowerCase();
+    return friends.filter((friend) => {
+      return (
+        friend.fullName?.toLowerCase().includes(query) ||
+        friend.userName?.toLowerCase().includes(query)
+      );
+    });
+  }, [friends, debouncedSearchQuery]);
 
-  const displayIncomingRequests = incomingRequests.filter((request) => {
-    if (!searchQuery) return true;
-    return (
-      request.FullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      request.UserName?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  });
+  // Memoize filtered requests for performance
+  const displayIncomingRequests = useMemo(() => {
+    if (!debouncedSearchQuery) return incomingRequests;
+    const query = debouncedSearchQuery.toLowerCase();
+    return incomingRequests.filter((request) => {
+      return (
+        request.FullName?.toLowerCase().includes(query) ||
+        request.UserName?.toLowerCase().includes(query)
+      );
+    });
+  }, [incomingRequests, debouncedSearchQuery]);
 
   const getEmptyStateMessage = () => {
     switch (activeTab) {
@@ -290,13 +385,23 @@ const Friends: React.FC = () => {
 
       <div className="flex-1 overflow-y-auto p-6">{renderContent()}</div>
 
-      {canLoadMore && !isLoading && (
-        <button
-          onClick={handleLoadMore}
-          className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg mt-4"
-        >
-          Tải thêm
-        </button>
+      {canLoadMore && (
+        <div className="mt-4">
+          <button
+            onClick={handleLoadMore}
+            disabled={isLoading}
+            className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Đang tải...</span>
+              </>
+            ) : (
+              <span>Tải thêm</span>
+            )}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -313,8 +418,6 @@ const IncomingRequestCard: React.FC<IncomingRequestCardProps> = ({
   onAccept,
   onDecline,
 }) => {
-  const [loading, setLoading] = useState(false);
-
   const initials = request.FullName.slice(0, 2).toUpperCase();
 
   return (
@@ -339,14 +442,12 @@ const IncomingRequestCard: React.FC<IncomingRequestCardProps> = ({
       <div className="flex gap-2">
         <button
           onClick={() => onAccept(request.UserId)}
-          disabled={loading}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
         >
           ✓
         </button>
         <button
           onClick={() => onDecline(request.UserId)}
-          disabled={loading}
           className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg"
         >
           ✕
@@ -451,5 +552,45 @@ const FriendCard: React.FC<FriendCardProps> = ({
     </>
   );
 };
+
+// Cache helper functions
+function getCachedFriends(): FriendsCache | null {
+  try {
+    const cached = localStorage.getItem(FRIENDS_CACHE_KEY);
+    if (!cached) return null;
+
+    const data: FriendsCache = JSON.parse(cached);
+    const now = Date.now();
+
+    // Check if cache is expired
+    if (now - data.timestamp > FRIENDS_CACHE_EXPIRY) {
+      localStorage.removeItem(FRIENDS_CACHE_KEY);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error reading friends cache:", error);
+    return null;
+  }
+}
+
+function cacheFriends(
+  friends: FriendDto[],
+  cursor?: string,
+  hasMore?: boolean
+) {
+  try {
+    const cache: FriendsCache = {
+      friends,
+      timestamp: Date.now(),
+      cursor,
+      hasMore: hasMore || false,
+    };
+    localStorage.setItem(FRIENDS_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error("Error caching friends:", error);
+  }
+}
 
 export default Friends;

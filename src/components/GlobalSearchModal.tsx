@@ -37,7 +37,6 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
         Page: page,
         Size: 20,
       });
-      console.log("Search response:", response);
 
       // ✅ Backend ALWAYS returns fresh IsPending & IsFriend status
       setResults(response.Items);
@@ -54,9 +53,6 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
       setLoading(false);
     }
   }, []);
-  useEffect(() => {
-    console.log("results updated:", results);
-  }, [results]);
 
   // ✅ Search on query change with debounce
   useEffect(() => {
@@ -68,11 +64,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
   }, [query, searchUsers]);
 
   const handleInvite = async (userId: string) => {
-    console.log("🔵 Sending friend request to:", userId);
-
     try {
       await friendService.inviteFriend(userId);
-      console.log("✅ Friend request sent successfully");
 
       // ✅ Update local state immediately for better UX
       setResults((prev) =>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Trophy,
   Star,
@@ -17,6 +17,17 @@ import DashboardService, {
 } from "../services/dashboardService";
 import GameService from "../services/gameService";
 import { useAuth } from "../contexts/AuthContext";
+import { toast } from "react-hot-toast";
+
+// Cache keys
+const DASHBOARD_CACHE_KEY = "dashboard_cache";
+const DASHBOARD_CACHE_EXPIRY = 2 * 60 * 1000; // 2 minutes (dashboard changes frequently)
+
+interface DashboardCache {
+  data: DashboardResponse;
+  gamesCount: number;
+  timestamp: number;
+}
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -27,16 +38,46 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [myGamesCount, setMyGamesCount] = useState(0);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Load dashboard data and games count in parallel
+      // Try to load from cache first
+      const cached = getCachedDashboard();
+      if (cached) {
+        setDashboardData(cached.data);
+        setMyGamesCount(cached.gamesCount);
+        setLoading(false);
+
+        // Refresh in background
+        Promise.allSettled([
+          DashboardService.getTodayDashboard().catch(() =>
+            DashboardService.getMockDashboardData()
+          ),
+          GameService.getMyGames().catch(() => []),
+        ])
+          .then(([dashboardResult, gamesResult]) => {
+            if (dashboardResult.status === "fulfilled") {
+              setDashboardData(dashboardResult.value);
+              cacheDashboard(
+                dashboardResult.value,
+                gamesResult.status === "fulfilled"
+                  ? gamesResult.value.length
+                  : cached.gamesCount
+              );
+            }
+            if (gamesResult.status === "fulfilled") {
+              setMyGamesCount(gamesResult.value.length);
+            }
+          })
+          .catch((err) => {
+            console.warn("Background refresh failed:", err);
+          });
+        return;
+      }
+
+      // Load from API
       const [dashboardResult, gamesResult] = await Promise.allSettled([
         DashboardService.getTodayDashboard().catch(() =>
           DashboardService.getMockDashboardData()
@@ -46,58 +87,48 @@ const Dashboard: React.FC = () => {
 
       if (dashboardResult.status === "fulfilled") {
         setDashboardData(dashboardResult.value);
-        console.log("📊 Dashboard data loaded:", dashboardResult.value);
       }
 
       if (gamesResult.status === "fulfilled") {
-        setMyGamesCount(gamesResult.value.length);
-        console.log("🎮 Games count loaded:", gamesResult.value.length);
+        const count = gamesResult.value.length;
+        setMyGamesCount(count);
       }
-    } catch (err) {
-      console.error("❌ Dashboard error:", err);
-      setError("Không thể tải dữ liệu dashboard");
-      // Set mock data as fallback
-      const mockData = DashboardService.getMockDashboardData();
-      setDashboardData(mockData);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleCompleteQuest = async (quest: TodayQuest) => {
-    if (quest.isCompleted) return;
-
-    try {
-      const result = await DashboardService.completeQuest(quest.id);
-      if (result.success) {
-        // Update local state
-        setDashboardData((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            stats: {
-              ...prev.stats,
-              totalPoints: prev.stats.totalPoints + result.pointsEarned,
-              questsCompletedToday: prev.stats.questsCompletedToday + 1,
-            },
-            todayQuests: (prev.todayQuests || []).map((q) =>
-              q.id === quest.id
-                ? {
-                    ...q,
-                    isCompleted: true,
-                    completedAt: new Date().toISOString(),
-                  }
-                : q
-            ),
-          };
-        });
-        console.log(
-          `✅ Quest completed: ${quest.title} (+${result.pointsEarned} points)`
+      // Cache results
+      if (dashboardResult.status === "fulfilled") {
+        cacheDashboard(
+          dashboardResult.value,
+          gamesResult.status === "fulfilled" ? gamesResult.value.length : 0
         );
       }
     } catch (err) {
-      console.error("❌ Error completing quest:", err);
-      // Still update UI for better UX
+      console.error("❌ Dashboard error:", err);
+
+      // Try cache on error
+      const cached = getCachedDashboard();
+      if (cached) {
+        setDashboardData(cached.data);
+        setMyGamesCount(cached.gamesCount);
+      } else {
+        setError("Không thể tải dữ liệu dashboard");
+        const mockData = DashboardService.getMockDashboardData();
+        setDashboardData(mockData);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Load dashboard data on mount
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  const handleCompleteQuest = useCallback(
+    async (quest: TodayQuest) => {
+      if (quest.isCompleted) return;
+
+      // Optimistic update
       setDashboardData((prev) => {
         if (!prev) return prev;
         return {
@@ -118,36 +149,61 @@ const Dashboard: React.FC = () => {
           ),
         };
       });
-    }
-  };
 
-  const handleRegisterEvent = async (event: TodayEvent) => {
-    if (event.isRegistered) return;
-
-    try {
-      const result = await DashboardService.registerEvent(event.id);
-      if (result.success) {
-        // Update local state
+      try {
+        const result = await DashboardService.completeQuest(quest.id);
+        if (result.success) {
+          // Update with actual result
+          setDashboardData((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              stats: {
+                ...prev.stats,
+                totalPoints:
+                  prev.stats.totalPoints + (result.pointsEarned - quest.points),
+              },
+            };
+          });
+          console.log(
+            `✅ Quest completed: ${quest.title} (+${result.pointsEarned} points)`
+          );
+          // Refresh cache
+          loadDashboardData();
+        }
+      } catch (err) {
+        console.error("❌ Error completing quest:", err);
+        // Revert optimistic update on error
         setDashboardData((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
-            todayEvents: (prev.todayEvents || []).map((e) =>
-              e.id === event.id
+            stats: {
+              ...prev.stats,
+              totalPoints: prev.stats.totalPoints - quest.points,
+              questsCompletedToday: prev.stats.questsCompletedToday - 1,
+            },
+            todayQuests: (prev.todayQuests || []).map((q) =>
+              q.id === quest.id
                 ? {
-                    ...e,
-                    isRegistered: true,
-                    currentParticipants: e.currentParticipants + 1,
+                    ...q,
+                    isCompleted: false,
+                    completedAt: undefined,
                   }
-                : e
+                : q
             ),
           };
         });
-        console.log(`✅ Event registered: ${event.title}`);
       }
-    } catch (err) {
-      console.error("❌ Error registering for event:", err);
-      // Still update UI for better UX
+    },
+    [loadDashboardData]
+  );
+
+  const handleRegisterEvent = useCallback(
+    async (event: TodayEvent) => {
+      if (event.isRegistered) return;
+
+      // Optimistic update
       setDashboardData((prev) => {
         if (!prev) return prev;
         return {
@@ -163,10 +219,38 @@ const Dashboard: React.FC = () => {
           ),
         };
       });
-    }
-  };
 
-  const getQuestIcon = (quest: TodayQuest) => {
+      try {
+        const result = await DashboardService.registerEvent(event.id);
+        if (result.success) {
+          // Refresh cache in background
+          loadDashboardData().catch(console.error);
+        }
+      } catch (err) {
+        console.error("❌ Error registering for event:", err);
+        // Revert optimistic update on error
+        setDashboardData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            todayEvents: (prev.todayEvents || []).map((e) =>
+              e.id === event.id
+                ? {
+                    ...e,
+                    isRegistered: false,
+                    currentParticipants: Math.max(0, e.currentParticipants - 1),
+                  }
+                : e
+            ),
+          };
+        });
+        toast.error("Không thể đăng ký sự kiện");
+      }
+    },
+    [loadDashboardData]
+  );
+
+  const getQuestIcon = useCallback((quest: TodayQuest) => {
     switch (quest.type) {
       case "daily":
         return "📅";
@@ -177,9 +261,9 @@ const Dashboard: React.FC = () => {
       default:
         return quest.icon;
     }
-  };
+  }, []);
 
-  const getEventIcon = (event: TodayEvent) => {
+  const getEventIcon = useCallback((event: TodayEvent) => {
     switch (event.type) {
       case "tournament":
         return "🏆";
@@ -190,9 +274,9 @@ const Dashboard: React.FC = () => {
       default:
         return event.icon;
     }
-  };
+  }, []);
 
-  const formatTime = (timeString: string) => {
+  const formatTime = useCallback((timeString: string) => {
     if (!timeString || typeof timeString !== "string") {
       return "N/A";
     }
@@ -209,12 +293,13 @@ const Dashboard: React.FC = () => {
         hour: "2-digit",
         minute: "2-digit",
       });
-    } catch (error) {
+    } catch {
       return timeString; // Return original on error
     }
-  };
+  }, []);
 
-  const getProgressPercentage = () => {
+  // Memoize expensive calculations
+  const getProgressPercentage = useCallback(() => {
     if (!dashboardData?.stats) return 0;
     const { level, pointsToNextLevel } = dashboardData.stats;
     const currentLevelPoints = level * 200; // Assuming 200 points per level
@@ -224,7 +309,12 @@ const Dashboard: React.FC = () => {
         (nextLevelPoints - currentLevelPoints)) *
       100;
     return Math.min(100, Math.max(0, progress));
-  };
+  }, [dashboardData?.stats]);
+
+  const progressPercentage = useMemo(
+    () => getProgressPercentage(),
+    [getProgressPercentage]
+  );
 
   if (loading) {
     return (
@@ -272,7 +362,7 @@ const Dashboard: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white">
-                Chào mừng trở lại, {user?.fullName || user?.userName}!
+                Chào mừng trở lại, {user?.FullName || user?.UserName}!
               </h1>
               <p className="text-gray-300 mt-1">
                 Hôm nay là một ngày tuyệt vời để gaming! 🎮
@@ -321,7 +411,7 @@ const Dashboard: React.FC = () => {
               <div className="mt-2 bg-indigo-400 bg-opacity-30 rounded-full h-2">
                 <div
                   className="bg-white rounded-full h-2 transition-all duration-500"
-                  style={{ width: `${getProgressPercentage()}%` }}
+                  style={{ width: `${progressPercentage}%` }}
                 ></div>
               </div>
             </div>
@@ -520,7 +610,7 @@ const Dashboard: React.FC = () => {
                 Sự kiện hôm nay
               </h2>
               <span className="text-sm text-gray-400">
-                {todayEvents?.filter((e) => e.isRegistered).length || 0}/
+                {(todayEvents || []).filter((e) => e.isRegistered).length}/
                 {todayEvents?.length || 0} đã đăng ký
               </span>
             </div>
@@ -658,5 +748,39 @@ const Dashboard: React.FC = () => {
     </div>
   );
 };
+
+// Cache helper functions
+function getCachedDashboard(): DashboardCache | null {
+  try {
+    const cached = localStorage.getItem(DASHBOARD_CACHE_KEY);
+    if (!cached) return null;
+
+    const data: DashboardCache = JSON.parse(cached);
+    const now = Date.now();
+
+    if (now - data.timestamp > DASHBOARD_CACHE_EXPIRY) {
+      localStorage.removeItem(DASHBOARD_CACHE_KEY);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error reading dashboard cache:", error);
+    return null;
+  }
+}
+
+function cacheDashboard(data: DashboardResponse, gamesCount: number) {
+  try {
+    const cache: DashboardCache = {
+      data,
+      gamesCount,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error("Error caching dashboard:", error);
+  }
+}
 
 export default Dashboard;

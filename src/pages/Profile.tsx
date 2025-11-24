@@ -1,42 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  User, 
-  Mail, 
-  MapPin, 
-  Star, 
-  Shield, 
-  Edit3, 
-  Save, 
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  User,
+  Mail,
+  MapPin,
+  Star,
+  Shield,
+  Edit3,
+  Save,
   X,
   Camera,
   Award,
   Trophy,
   Activity,
-  Settings
-} from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { toast } from 'react-hot-toast';
-import { Link } from 'react-router-dom';
-0
+  Settings,
+} from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { toast } from "react-hot-toast";
+import { Link } from "react-router-dom";
+
 const Profile: React.FC = () => {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
-    fullName: '',
-    userName: '',
-    email: '',
-    university: '',
-    bio: ''
+    fullName: "",
+    userName: "",
+    email: "",
+    university: "",
+    bio: "",
   });
 
   useEffect(() => {
     if (user) {
       setEditForm({
-        fullName: user.fullName || '',
-        userName: user.userName || '',
-        email: user.email || '',
-        university: user.university || '',
-        bio: user.bio || ''
+        fullName: user.fullName || "",
+        userName: user.userName || "",
+        email: user.email || "",
+        university: user.university || "",
+        bio: user.bio || "",
       });
     }
   }, [user]);
@@ -47,42 +47,52 @@ const Profile: React.FC = () => {
 
   const handleCancel = () => {
     setEditForm({
-      fullName: user?.fullName || '',
-      userName: user?.userName || '',
-      email: user?.email || '',
-      university: user?.university || '',
-      bio: user?.bio || ''
+      fullName: user?.fullName || "",
+      userName: user?.userName || "",
+      email: user?.email || "",
+      university: user?.university || "",
+      bio: user?.bio || "",
     });
     setIsEditing(false);
   };
 
   const handleSave = () => {
     // TODO: Implement profile update API
-    toast.success('Profile updated successfully!');
+    toast.success("Profile updated successfully!");
     setIsEditing(false);
   };
 
-  const getRoleIcon = (role: string) => {
+  // Memoize role functions
+  const getRoleIcon = useCallback((role: string) => {
     switch (role?.toLowerCase()) {
-      case 'admin':
+      case "admin":
         return <Shield className="w-5 h-5 text-red-500" />;
-      case 'moderator':
+      case "moderator":
         return <Shield className="w-5 h-5 text-blue-500" />;
       default:
         return <User className="w-5 h-5 text-gray-500" />;
     }
-  };
+  }, []);
 
-  const getRoleColor = (role: string) => {
+  const getRoleColor = useCallback((role: string) => {
     switch (role?.toLowerCase()) {
-      case 'admin':
-        return 'text-red-400';
-      case 'moderator':
-        return 'text-blue-400';
+      case "admin":
+        return "text-red-400";
+      case "moderator":
+        return "text-blue-400";
       default:
-        return 'text-gray-400';
+        return "text-gray-400";
     }
-  };
+  }, []);
+
+  const roleIcon = useMemo(
+    () => (user ? getRoleIcon(user.role || "") : null),
+    [user, getRoleIcon]
+  );
+  const roleColor = useMemo(
+    () => (user ? getRoleColor(user.role || "") : ""),
+    [user, getRoleColor]
+  );
 
   if (!user) {
     return (
@@ -103,7 +113,9 @@ const Profile: React.FC = () => {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">Profile</h1>
-            <p className="text-gray-400">Manage your account settings and preferences</p>
+            <p className="text-gray-400">
+              Manage your account settings and preferences
+            </p>
           </div>
           <Link
             to="/profile-settings"
@@ -123,36 +135,45 @@ const Profile: React.FC = () => {
                 <div className="relative inline-block">
                   <div className="w-24 h-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-2xl font-bold text-white">
-                      {user.fullName?.charAt(0)?.toUpperCase() || user.userName?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
+                      {user.fullName?.charAt(0)?.toUpperCase() ||
+                        user.userName?.charAt(0)?.toUpperCase() ||
+                        user.email?.charAt(0)?.toUpperCase() ||
+                        "U"}
                     </span>
                   </div>
                   <button className="absolute bottom-0 right-0 bg-gray-700 hover:bg-gray-600 rounded-full p-2 transition-colors">
                     <Camera className="w-4 h-4 text-white" />
                   </button>
                 </div>
-                
+
                 <h2 className="text-xl font-bold text-white mb-1">
-                  {user.fullName || user.userName || 'Unknown User'}
+                  {user.fullName || user.userName || "Unknown User"}
                 </h2>
-                <p className="text-gray-400 text-sm">@{user.userName || 'username'}</p>
+                <p className="text-gray-400 text-sm">
+                  @{user.userName || "username"}
+                </p>
               </div>
 
               {/* Role & Level */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
                   <div className="flex items-center space-x-2">
-                    {getRoleIcon(user.role)}
-                    <span className="text-sm font-medium text-gray-300">Role</span>
+                    {roleIcon}
+                    <span className="text-sm font-medium text-gray-300">
+                      Role
+                    </span>
                   </div>
-                  <span className={`text-sm font-semibold ${getRoleColor(user.role)}`}>
-                    {user.role || 'Member'}
+                  <span className={`text-sm font-semibold ${roleColor}`}>
+                    {user.role || "Member"}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <Star className="w-5 h-5 text-yellow-500" />
-                    <span className="text-sm font-medium text-gray-300">Level</span>
+                    <span className="text-sm font-medium text-gray-300">
+                      Level
+                    </span>
                   </div>
                   <span className="text-sm font-semibold text-yellow-400">
                     {user.level || 1}
@@ -162,10 +183,12 @@ const Profile: React.FC = () => {
                 <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <MapPin className="w-5 h-5 text-blue-500" />
-                    <span className="text-sm font-medium text-gray-300">University</span>
+                    <span className="text-sm font-medium text-gray-300">
+                      University
+                    </span>
                   </div>
                   <span className="text-sm font-semibold text-blue-400">
-                    {user.university || 'Not specified'}
+                    {user.university || "Not specified"}
                   </span>
                 </div>
               </div>
@@ -176,7 +199,9 @@ const Profile: React.FC = () => {
           <div className="lg:col-span-2">
             <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-white">Profile Information</h3>
+                <h3 className="text-xl font-bold text-white">
+                  Profile Information
+                </h3>
                 {!isEditing ? (
                   <button
                     onClick={handleEdit}
@@ -215,14 +240,18 @@ const Profile: React.FC = () => {
                     <input
                       type="text"
                       value={editForm.fullName}
-                      onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, fullName: e.target.value })
+                      }
                       className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-indigo-500 focus:outline-none"
                       placeholder="Enter your full name"
                     />
                   ) : (
                     <div className="flex items-center space-x-3 p-3 bg-gray-700/50 rounded-lg">
                       <User className="w-5 h-5 text-gray-400" />
-                      <span className="text-white">{user.fullName || 'Not specified'}</span>
+                      <span className="text-white">
+                        {user.fullName || "Not specified"}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -236,14 +265,18 @@ const Profile: React.FC = () => {
                     <input
                       type="text"
                       value={editForm.userName}
-                      onChange={(e) => setEditForm({ ...editForm, userName: e.target.value })}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, userName: e.target.value })
+                      }
                       className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-indigo-500 focus:outline-none"
                       placeholder="Enter your username"
                     />
                   ) : (
                     <div className="flex items-center space-x-3 p-3 bg-gray-700/50 rounded-lg">
                       <User className="w-5 h-5 text-gray-400" />
-                      <span className="text-white">@{user.userName || 'username'}</span>
+                      <span className="text-white">
+                        @{user.userName || "username"}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -255,7 +288,9 @@ const Profile: React.FC = () => {
                   </label>
                   <div className="flex items-center space-x-3 p-3 bg-gray-700/50 rounded-lg">
                     <Mail className="w-5 h-5 text-gray-400" />
-                    <span className="text-white">{user.email || 'Not specified'}</span>
+                    <span className="text-white">
+                      {user.email || "Not specified"}
+                    </span>
                   </div>
                 </div>
 
@@ -268,14 +303,18 @@ const Profile: React.FC = () => {
                     <input
                       type="text"
                       value={editForm.university}
-                      onChange={(e) => setEditForm({ ...editForm, university: e.target.value })}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, university: e.target.value })
+                      }
                       className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-indigo-500 focus:outline-none"
                       placeholder="Enter your university"
                     />
                   ) : (
                     <div className="flex items-center space-x-3 p-3 bg-gray-700/50 rounded-lg">
                       <MapPin className="w-5 h-5 text-gray-400" />
-                      <span className="text-white">{user.university || 'Not specified'}</span>
+                      <span className="text-white">
+                        {user.university || "Not specified"}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -288,7 +327,9 @@ const Profile: React.FC = () => {
                   {isEditing ? (
                     <textarea
                       value={editForm.bio}
-                      onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, bio: e.target.value })
+                      }
                       rows={4}
                       className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-indigo-500 focus:outline-none resize-none"
                       placeholder="Tell us about yourself..."
@@ -296,7 +337,7 @@ const Profile: React.FC = () => {
                   ) : (
                     <div className="p-3 bg-gray-700/50 rounded-lg">
                       <span className="text-white">
-                        {user.bio || 'No bio available'}
+                        {user.bio || "No bio available"}
                       </span>
                     </div>
                   )}
@@ -309,7 +350,9 @@ const Profile: React.FC = () => {
               <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-gray-400 text-sm font-medium">Games Played</p>
+                    <p className="text-gray-400 text-sm font-medium">
+                      Games Played
+                    </p>
                     <p className="text-2xl font-bold text-white">12</p>
                   </div>
                   <div className="bg-blue-600/20 rounded-full p-3">
@@ -321,7 +364,9 @@ const Profile: React.FC = () => {
               <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-gray-400 text-sm font-medium">Quests Completed</p>
+                    <p className="text-gray-400 text-sm font-medium">
+                      Quests Completed
+                    </p>
                     <p className="text-2xl font-bold text-white">45</p>
                   </div>
                   <div className="bg-green-600/20 rounded-full p-3">
@@ -333,7 +378,9 @@ const Profile: React.FC = () => {
               <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-gray-400 text-sm font-medium">Events Attended</p>
+                    <p className="text-gray-400 text-sm font-medium">
+                      Events Attended
+                    </p>
                     <p className="text-2xl font-bold text-white">8</p>
                   </div>
                   <div className="bg-purple-600/20 rounded-full p-3">

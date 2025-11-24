@@ -1,96 +1,216 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, Plus, Star, Clock, Trophy, Users, Gamepad2, ChevronRight, Loader2 } from 'lucide-react';
-import GameService, { Game, GameSearchParams } from '../services/gameService';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useState, useEffect, useCallback } from "react";
+import { Search, Filter, Plus, Star, Gamepad2, Loader2 } from "lucide-react";
+import GameService, { Game, GameSearchParams } from "../services/gameService";
+
+// Cache key
+const GAMES_CACHE_KEY = "games_cache";
+const GAMES_CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+
+interface GamesCache {
+  games: Game[];
+  totalPages: number;
+  currentPage: number;
+  searchParams: GameSearchParams;
+  timestamp: number;
+}
 
 const Games: React.FC = () => {
-  const { user } = useAuth();
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useState<GameSearchParams>({
-    query: '',
-    genre: '',
-    platform: '',
-    sortBy: 'name',
-    sortOrder: 'asc',
+    query: "",
+    genre: "",
+    platform: "",
+    sortBy: "name",
+    sortOrder: "asc",
     page: 1,
-    limit: 12
+    limit: 12,
   });
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [addGameForm, setAddGameForm] = useState({
-    inGameName: '',
-    skillLevel: 1
+    inGameName: "",
+    skillLevel: 1,
   });
   const [addingGame, setAddingGame] = useState(false);
 
-  // Load games on component mount and when search params change
+  // Debounce search query
   useEffect(() => {
-    loadGames();
-  }, [searchParams]);
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchParams.query || "");
+    }, 300);
 
-  const loadGames = async () => {
+    return () => clearTimeout(timer);
+  }, [searchParams.query]);
+
+  // Update search params when debounced query changes
+  useEffect(() => {
+    if (debouncedSearchQuery !== (searchParams.query || "")) {
+      setSearchParams((prev) => ({
+        ...prev,
+        query: debouncedSearchQuery,
+        page: 1,
+      }));
+    }
+  }, [debouncedSearchQuery, searchParams.query]);
+
+  const loadGames = useCallback(async () => {
     try {
       setLoading(true);
+
+      // Try cache first (only for first page and no search)
+      if (
+        searchParams.page === 1 &&
+        !searchParams.query &&
+        !searchParams.genre &&
+        !searchParams.platform
+      ) {
+        const cached = getCachedGames();
+        if (cached) {
+          setGames(cached.games);
+          setTotalPages(cached.totalPages);
+          setCurrentPage(cached.currentPage);
+          setLoading(false);
+
+          // Refresh in background
+          GameService.getAllGames(searchParams)
+            .then((response) => {
+              setGames(response.items);
+              setTotalPages(response.totalPages);
+              setCurrentPage(response.page);
+              cacheGames(
+                response.items,
+                response.totalPages,
+                response.page,
+                searchParams
+              );
+            })
+            .catch((err) => {
+              console.warn("Background refresh failed:", err);
+            });
+          return;
+        }
+      }
+
       const response = await GameService.getAllGames(searchParams);
       setGames(response.items);
       setTotalPages(response.totalPages);
       setCurrentPage(response.page);
+
+      // Cache only first page with no filters
+      if (
+        searchParams.page === 1 &&
+        !searchParams.query &&
+        !searchParams.genre &&
+        !searchParams.platform
+      ) {
+        cacheGames(
+          response.items,
+          response.totalPages,
+          response.page,
+          searchParams
+        );
+      }
     } catch (error) {
-      console.error('Error loading games:', error);
+      console.error("Error loading games:", error);
+      // Try cache on error
+      const cached = getCachedGames();
+      if (cached) {
+        setGames(cached.games);
+        setTotalPages(cached.totalPages);
+        setCurrentPage(cached.currentPage);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchParams]);
 
-  const handleSearch = (query: string) => {
-    setSearchParams(prev => ({ ...prev, query, page: 1 }));
-  };
+  // Load games on component mount and when search params change
+  useEffect(() => {
+    loadGames();
+  }, [
+    searchParams.genre,
+    searchParams.platform,
+    searchParams.sortBy,
+    searchParams.sortOrder,
+    searchParams.page,
+    debouncedSearchQuery,
+    loadGames,
+  ]);
 
-  const handleFilterChange = (key: keyof GameSearchParams, value: any) => {
-    setSearchParams(prev => ({ ...prev, [key]: value, page: 1 }));
-  };
+  const handleSearch = useCallback((query: string) => {
+    setSearchParams((prev) => ({ ...prev, query, page: 1 }));
+  }, []);
 
-  const handleAddGame = (game: Game) => {
+  const handleFilterChange = useCallback(
+    (key: keyof GameSearchParams, value: string | number) => {
+      setSearchParams((prev) => ({ ...prev, [key]: value, page: 1 }));
+    },
+    []
+  );
+
+  const handleAddGame = useCallback((game: Game) => {
     setSelectedGame(game);
     setAddGameForm({
-      inGameName: '',
-      skillLevel: 1
+      inGameName: "",
+      skillLevel: 1,
     });
     setShowAddModal(true);
-  };
+  }, []);
 
-  const handleSubmitAddGame = async () => {
+  const handleSubmitAddGame = useCallback(async () => {
     if (!selectedGame || !addGameForm.inGameName.trim()) return;
 
     try {
       setAddingGame(true);
       await GameService.addGameToLibrary(selectedGame.id, {
         inGameName: addGameForm.inGameName.trim(),
-        skillLevel: addGameForm.skillLevel
+        skillLevel: addGameForm.skillLevel,
       });
-      
-      // Refresh games to update isInLibrary status
-      await loadGames();
+
+      // Optimistic update
+      setGames((prev) =>
+        prev.map((g) =>
+          g.id === selectedGame.id ? { ...g, isInLibrary: true } : g
+        )
+      );
+
       setShowAddModal(false);
       setSelectedGame(null);
-      toast.success('Game đã được thêm vào thư viện!');
-    } catch (error: any) {
-      console.error('Error adding game:', error);
-      toast.error(error.message || 'Không thể thêm game vào thư viện');
+
+      // Refresh in background
+      loadGames().catch(console.error);
+    } catch (error: unknown) {
+      console.error("Error adding game:", error);
+      // Revert optimistic update
+      setGames((prev) =>
+        prev.map((g) =>
+          g.id === selectedGame.id ? { ...g, isInLibrary: false } : g
+        )
+      );
     } finally {
       setAddingGame(false);
     }
-  };
+  }, [selectedGame, addGameForm, loadGames]);
 
-  const handlePageChange = (page: number) => {
-    setSearchParams(prev => ({ ...prev, page }));
-  };
+  const handlePageChange = useCallback((page: number) => {
+    setSearchParams((prev) => ({ ...prev, page }));
+  }, []);
 
-  const genres = ['Action', 'RPG', 'Strategy', 'FPS', 'MOBA', 'Battle Royale', 'Sports', 'Racing'];
-  const platforms = ['PC', 'PlayStation', 'Xbox', 'Nintendo Switch', 'Mobile'];
+  const genres = [
+    "Action",
+    "RPG",
+    "Strategy",
+    "FPS",
+    "MOBA",
+    "Battle Royale",
+    "Sports",
+    "Racing",
+  ];
+  const platforms = ["PC", "PlayStation", "Xbox", "Nintendo Switch", "Mobile"];
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -103,11 +223,13 @@ const Games: React.FC = () => {
                 <Gamepad2 className="w-8 h-8" />
                 Games Library
               </h1>
-              <p className="text-gray-300 mt-2">Khám phá và quản lý thư viện games của bạn</p>
+              <p className="text-gray-300 mt-2">
+                Khám phá và quản lý thư viện games của bạn
+              </p>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold text-purple-300">
-                {games.filter(g => g.isInLibrary).length}
+                {games.filter((g) => g.isInLibrary).length}
               </div>
               <div className="text-sm text-gray-300">Games trong thư viện</div>
             </div>
@@ -121,7 +243,7 @@ const Games: React.FC = () => {
               <input
                 type="text"
                 placeholder="Tìm kiếm games..."
-                value={searchParams.query || ''}
+                value={searchParams.query || ""}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
@@ -132,34 +254,38 @@ const Games: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-gray-400" />
                 <select
-                  value={searchParams.genre || ''}
-                  onChange={(e) => handleFilterChange('genre', e.target.value)}
+                  value={searchParams.genre || ""}
+                  onChange={(e) => handleFilterChange("genre", e.target.value)}
                   className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500"
                 >
                   <option value="">Tất cả thể loại</option>
-                  {genres.map(genre => (
-                    <option key={genre} value={genre}>{genre}</option>
+                  {genres.map((genre) => (
+                    <option key={genre} value={genre}>
+                      {genre}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <select
-                value={searchParams.platform || ''}
-                onChange={(e) => handleFilterChange('platform', e.target.value)}
+                value={searchParams.platform || ""}
+                onChange={(e) => handleFilterChange("platform", e.target.value)}
                 className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500"
               >
                 <option value="">Tất cả nền tảng</option>
-                {platforms.map(platform => (
-                  <option key={platform} value={platform}>{platform}</option>
+                {platforms.map((platform) => (
+                  <option key={platform} value={platform}>
+                    {platform}
+                  </option>
                 ))}
               </select>
 
               <select
                 value={`${searchParams.sortBy}-${searchParams.sortOrder}`}
                 onChange={(e) => {
-                  const [sortBy, sortOrder] = e.target.value.split('-');
-                  handleFilterChange('sortBy', sortBy);
-                  handleFilterChange('sortOrder', sortOrder);
+                  const [sortBy, sortOrder] = e.target.value.split("-");
+                  handleFilterChange("sortBy", sortBy);
+                  handleFilterChange("sortOrder", sortOrder);
                 }}
                 className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500"
               >
@@ -184,18 +310,18 @@ const Games: React.FC = () => {
         ) : games.length === 0 ? (
           <div className="text-center py-12">
             <Gamepad2 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-400 mb-2">Không tìm thấy games</h3>
-            <p className="text-gray-500">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
+            <h3 className="text-xl font-semibold text-gray-400 mb-2">
+              Không tìm thấy games
+            </h3>
+            <p className="text-gray-500">
+              Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm
+            </p>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {games.map((game) => (
-                <GameCard
-                  key={game.id}
-                  game={game}
-                  onAddGame={handleAddGame}
-                />
+                <GameCard key={game.id} game={game} onAddGame={handleAddGame} />
               ))}
             </div>
 
@@ -210,21 +336,23 @@ const Games: React.FC = () => {
                   >
                     Trước
                   </button>
-                  
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                    <button
-                      key={page}
-                      onClick={() => handlePageChange(page)}
-                      className={`px-3 py-2 rounded-lg ${
-                        page === currentPage
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-800 border border-gray-700 hover:bg-gray-700'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                  
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (page) => (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`px-3 py-2 rounded-lg ${
+                          page === currentPage
+                            ? "bg-purple-600 text-white"
+                            : "bg-gray-800 border border-gray-700 hover:bg-gray-700"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  )}
+
                   <button
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
@@ -243,8 +371,10 @@ const Games: React.FC = () => {
       {showAddModal && selectedGame && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-xl font-bold mb-4">Thêm {selectedGame.name} vào thư viện</h3>
-            
+            <h3 className="text-xl font-bold mb-4">
+              Thêm {selectedGame.name} vào thư viện
+            </h3>
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -253,7 +383,12 @@ const Games: React.FC = () => {
                 <input
                   type="text"
                   value={addGameForm.inGameName}
-                  onChange={(e) => setAddGameForm(prev => ({ ...prev, inGameName: e.target.value }))}
+                  onChange={(e) =>
+                    setAddGameForm((prev) => ({
+                      ...prev,
+                      inGameName: e.target.value,
+                    }))
+                  }
                   placeholder="Nhập tên nhân vật hoặc username"
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500"
                 />
@@ -268,12 +403,19 @@ const Games: React.FC = () => {
                   min="1"
                   max="10"
                   value={addGameForm.skillLevel}
-                  onChange={(e) => setAddGameForm(prev => ({ ...prev, skillLevel: parseInt(e.target.value) }))}
+                  onChange={(e) =>
+                    setAddGameForm((prev) => ({
+                      ...prev,
+                      skillLevel: parseInt(e.target.value),
+                    }))
+                  }
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-gray-400 mt-1">
                   <span>Casual</span>
-                  <span>{GameService.getSkillLevelText(addGameForm.skillLevel)}</span>
+                  <span>
+                    {GameService.getSkillLevelText(addGameForm.skillLevel)}
+                  </span>
                   <span>Competitive</span>
                 </div>
               </div>
@@ -297,7 +439,7 @@ const Games: React.FC = () => {
                     Đang thêm...
                   </>
                 ) : (
-                  'Thêm vào thư viện'
+                  "Thêm vào thư viện"
                 )}
               </button>
             </div>
@@ -318,7 +460,9 @@ const GameCard: React.FC<GameCardProps> = ({ game, onAddGame }) => {
   return (
     <div className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors">
       {/* Game Image/Icon */}
-      <div className={`h-32 bg-gradient-to-br ${game.color} flex items-center justify-center`}>
+      <div
+        className={`h-32 bg-gradient-to-br ${game.color} flex items-center justify-center`}
+      >
         <div className="text-6xl">{game.icon}</div>
       </div>
 
@@ -331,7 +475,9 @@ const GameCard: React.FC<GameCardProps> = ({ game, onAddGame }) => {
           )}
         </div>
 
-        <p className="text-gray-400 text-sm mb-3 line-clamp-2">{game.description}</p>
+        <p className="text-gray-400 text-sm mb-3 line-clamp-2">
+          {game.description}
+        </p>
 
         <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
           <span className="bg-gray-700 px-2 py-1 rounded">{game.genre}</span>
@@ -342,11 +488,17 @@ const GameCard: React.FC<GameCardProps> = ({ game, onAddGame }) => {
           <div className="space-y-2 mb-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">In-game:</span>
-              <span className="text-sm font-medium">{game.userGameInfo.inGameName}</span>
+              <span className="text-sm font-medium">
+                {game.userGameInfo.inGameName}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">Skill:</span>
-              <span className={`text-sm font-medium ${GameService.getSkillLevelColor(game.userGameInfo.skillLevel)}`}>
+              <span
+                className={`text-sm font-medium ${GameService.getSkillLevelColor(
+                  game.userGameInfo.skillLevel
+                )}`}
+              >
                 {GameService.getSkillLevelText(game.userGameInfo.skillLevel)}
               </span>
             </div>
@@ -358,8 +510,8 @@ const GameCard: React.FC<GameCardProps> = ({ game, onAddGame }) => {
           disabled={game.isInLibrary}
           className={`w-full py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center ${
             game.isInLibrary
-              ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-              : 'bg-purple-600 hover:bg-purple-700 text-white'
+              ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+              : "bg-purple-600 hover:bg-purple-700 text-white"
           }`}
         >
           {game.isInLibrary ? (
@@ -378,5 +530,46 @@ const GameCard: React.FC<GameCardProps> = ({ game, onAddGame }) => {
     </div>
   );
 };
+
+// Cache helper functions
+function getCachedGames(): GamesCache | null {
+  try {
+    const cached = localStorage.getItem(GAMES_CACHE_KEY);
+    if (!cached) return null;
+
+    const data: GamesCache = JSON.parse(cached);
+    const now = Date.now();
+
+    if (now - data.timestamp > GAMES_CACHE_EXPIRY) {
+      localStorage.removeItem(GAMES_CACHE_KEY);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error reading games cache:", error);
+    return null;
+  }
+}
+
+function cacheGames(
+  games: Game[],
+  totalPages: number,
+  currentPage: number,
+  searchParams: GameSearchParams
+) {
+  try {
+    const cache: GamesCache = {
+      games,
+      totalPages,
+      currentPage,
+      searchParams,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(GAMES_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error("Error caching games:", error);
+  }
+}
 
 export default Games;

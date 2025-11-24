@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   CheckCircle,
   X,
@@ -12,6 +12,11 @@ import {
 import MembershipService from "../services/membershipService";
 import PaymentService from "../services/paymentService";
 import { MembershipPlanDto, CurrentMembershipDto } from "../types/membership";
+
+// Cache keys
+const MEMBERSHIP_PLANS_CACHE_KEY = "membership_plans_cache";
+const MEMBERSHIP_CURRENT_CACHE_KEY = "membership_current_cache";
+const CACHE_EXPIRY = 10 * 60 * 1000; // 10 minutes
 
 const Membership = () => {
   const [plans, setPlans] = useState<MembershipPlanDto[]>([]);
@@ -29,27 +34,77 @@ const Membership = () => {
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
+
+      // Try to load from cache first
+      const cachedPlans = getCachedPlans();
+      const cachedMembership = getCachedMembership();
+
+      if (cachedPlans && cachedMembership !== undefined) {
+        setPlans(cachedPlans);
+        setCurrentMembership(cachedMembership);
+        setLoading(false);
+
+        // Refresh in background
+        Promise.all([
+          MembershipService.getPlans(),
+          MembershipService.getMyMembership(),
+        ])
+          .then(([plansData, membershipData]) => {
+            const sortedPlans = plansData.sort((a, b) => a.Price - b.Price);
+            setPlans(sortedPlans);
+            setCurrentMembership(membershipData);
+            cachePlans(sortedPlans);
+            cacheMembership(membershipData);
+          })
+          .catch((err) => {
+            console.warn("Background refresh failed:", err);
+          });
+        return;
+      }
+
+      // Load from API
       const [plansData, membershipData] = await Promise.all([
         MembershipService.getPlans(),
         MembershipService.getMyMembership(),
       ]);
+
       // Sắp xếp theo giá (thấp đến cao)
-      setPlans(plansData.sort((a, b) => a.Price - b.Price));
+      const sortedPlans = plansData.sort((a, b) => a.Price - b.Price);
+      setPlans(sortedPlans);
       setCurrentMembership(membershipData);
-    } catch (err: any) {
-      setError("Không thể tải danh sách gói membership");
-      console.error(err);
+
+      // Cache results
+      cachePlans(sortedPlans);
+      cacheMembership(membershipData);
+    } catch (err: unknown) {
+      console.error("Load membership data error:", err);
+
+      // Try to use cache on error
+      const cachedPlans = getCachedPlans();
+      const cachedMembership = getCachedMembership();
+
+      if (cachedPlans) {
+        setPlans(cachedPlans);
+      }
+      if (cachedMembership !== undefined) {
+        setCurrentMembership(cachedMembership);
+      }
+
+      if (!cachedPlans && !cachedMembership) {
+        setError("Không thể tải danh sách gói membership");
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleBuyNow = async (plan: MembershipPlanDto) => {
     try {
@@ -65,16 +120,25 @@ const Membership = () => {
 
       // Hiển thị popup xác nhận
       setShowConfirmPopup(true);
-    } catch (err: any) {
-      if (err.response?.status === 402) {
-        setError("❌ Số dư ví không đủ. Vui lòng nạp thêm tiền.");
-      } else {
-        setError(
-          err.response?.data?.message ||
-            "Không thể tạo đơn hàng. Vui lòng thử lại."
-        );
-      }
+    } catch (err: unknown) {
       console.error("Buy membership error:", err);
+
+      if (err && typeof err === "object" && "response" in err) {
+        const response = err.response as {
+          status?: number;
+          data?: { message?: string };
+        };
+        if (response.status === 402) {
+          setError("❌ Số dư ví không đủ. Vui lòng nạp thêm tiền.");
+        } else {
+          setError(
+            response.data?.message ||
+              "Không thể tạo đơn hàng. Vui lòng thử lại."
+          );
+        }
+      } else {
+        setError("Không thể tạo đơn hàng. Vui lòng thử lại.");
+      }
     } finally {
       setPurchasing(null);
     }
@@ -98,13 +162,24 @@ const Membership = () => {
 
       // Redirect đến PayOS
       window.location.href = payosResult.checkoutUrl;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("PayOS payment error:", err);
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Không thể tạo link thanh toán. Vui lòng thử lại."
-      );
+
+      let errorMessage = "Không thể tạo link thanh toán. Vui lòng thử lại.";
+
+      if (err && typeof err === "object") {
+        const errorObj = err as Record<string, unknown>;
+        if ("response" in errorObj) {
+          const response = errorObj.response as { data?: { message?: string } };
+          if (response.data?.message) {
+            errorMessage = response.data.message;
+          }
+        } else if (typeof errorObj.message === "string") {
+          errorMessage = errorObj.message;
+        }
+      }
+
+      setError(errorMessage);
       setConfirming(false);
     }
   };
@@ -122,28 +197,34 @@ const Membership = () => {
     return Star;
   };
 
-  const formatPrice = (price: number) => {
+  // Memoize expensive calculations
+  const formatPrice = useCallback((price: number) => {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
     }).format(price);
-  };
+  }, []);
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = useCallback((dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("vi-VN", {
       year: "numeric",
       month: "long",
       day: "numeric",
     });
-  };
+  }, []);
 
-  const calculateDaysRemaining = (endDate: string) => {
+  const calculateDaysRemaining = useCallback((endDate: string) => {
     const end = new Date(endDate);
     const now = new Date();
     const diffTime = end.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return Math.max(0, diffDays);
-  };
+  }, []);
+
+  // Memoize filtered and sorted plans
+  const activePlans = useMemo(() => {
+    return plans.filter((p) => p.IsActive).sort((a, b) => a.Price - b.Price);
+  }, [plans]);
 
   if (loading) {
     return (
@@ -225,114 +306,112 @@ const Membership = () => {
 
         {/* Membership Plans */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {plans
-            .filter((p) => p.IsActive)
-            .map((plan) => {
-              const Icon = getPlanIcon(plan.Name);
-              const isCurrentPlan =
-                currentMembership?.MembershipPlanId === plan.Id;
-              const isFree = plan.Price === 0;
+          {activePlans.map((plan) => {
+            const Icon = getPlanIcon(plan.Name);
+            const isCurrentPlan =
+              currentMembership?.MembershipPlanId === plan.Id;
+            const isFree = plan.Price === 0;
 
-              return (
-                <div
-                  key={plan.Id}
-                  className={`relative bg-slate-800 border-2 rounded-2xl p-6 transition-all duration-300 hover:scale-105 ${
+            return (
+              <div
+                key={plan.Id}
+                className={`relative bg-slate-800 border-2 rounded-2xl p-6 transition-all duration-300 hover:scale-105 ${
+                  isCurrentPlan
+                    ? "border-green-500 shadow-lg shadow-green-500/20"
+                    : "border-slate-700 hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-500/20"
+                }`}
+              >
+                {/* Badge - Đang dùng */}
+                {isCurrentPlan && (
+                  <div className="absolute -top-3 -right-3 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
+                    Đang dùng
+                  </div>
+                )}
+
+                {/* Icon & Title */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-indigo-600/20 rounded-xl">
+                    <Icon className="w-8 h-8 text-indigo-400" />
+                  </div>
+                  <h3 className="text-2xl font-bold">{plan.Name}</h3>
+                </div>
+
+                {/* Description */}
+                <p className="text-slate-400 mb-6 min-h-[48px]">
+                  {plan.Description || "Gói membership tiêu chuẩn"}
+                </p>
+
+                {/* Price */}
+                <div className="mb-6">
+                  {isFree ? (
+                    <div className="text-4xl font-bold text-green-400">
+                      Miễn phí
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-4xl font-bold text-white">
+                        {formatPrice(plan.Price)}
+                      </div>
+                      <div className="text-slate-400 mt-1">
+                        /{plan.DurationMonths} tháng
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Features */}
+                <div className="space-y-3 mb-8">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-slate-300">
+                      {plan.MonthlyEventLimit === -1
+                        ? "Không giới hạn sự kiện"
+                        : `${plan.MonthlyEventLimit} sự kiện/tháng`}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-slate-300">
+                      Thời hạn: {plan.DurationMonths} tháng
+                    </span>
+                  </div>
+                </div>
+
+                {/* CTA Button - Mua ngay */}
+                <button
+                  onClick={() => handleBuyNow(plan)}
+                  disabled={isCurrentPlan || purchasing === plan.Id}
+                  className={`w-full py-3 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
                     isCurrentPlan
-                      ? "border-green-500 shadow-lg shadow-green-500/20"
-                      : "border-slate-700 hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-500/20"
+                      ? "bg-slate-700 text-slate-400 cursor-not-allowed"
+                      : purchasing === plan.Id
+                      ? "bg-indigo-600/50 text-white cursor-wait"
+                      : isFree
+                      ? "bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/30"
+                      : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30"
                   }`}
                 >
-                  {/* Badge - Đang dùng */}
-                  {isCurrentPlan && (
-                    <div className="absolute -top-3 -right-3 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
-                      Đang dùng
-                    </div>
+                  {purchasing === plan.Id ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Đang tạo đơn...</span>
+                    </>
+                  ) : isCurrentPlan ? (
+                    <span>Đã kích hoạt</span>
+                  ) : (
+                    <>
+                      <span>Mua ngay</span>
+                      <ArrowRight className="w-5 h-5" />
+                    </>
                   )}
-
-                  {/* Icon & Title */}
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-indigo-600/20 rounded-xl">
-                      <Icon className="w-8 h-8 text-indigo-400" />
-                    </div>
-                    <h3 className="text-2xl font-bold">{plan.Name}</h3>
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-slate-400 mb-6 min-h-[48px]">
-                    {plan.Description || "Gói membership tiêu chuẩn"}
-                  </p>
-
-                  {/* Price */}
-                  <div className="mb-6">
-                    {isFree ? (
-                      <div className="text-4xl font-bold text-green-400">
-                        Miễn phí
-                      </div>
-                    ) : (
-                      <>
-                        <div className="text-4xl font-bold text-white">
-                          {formatPrice(plan.Price)}
-                        </div>
-                        <div className="text-slate-400 mt-1">
-                          /{plan.DurationMonths} tháng
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Features */}
-                  <div className="space-y-3 mb-8">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                      <span className="text-slate-300">
-                        {plan.MonthlyEventLimit === -1
-                          ? "Không giới hạn sự kiện"
-                          : `${plan.MonthlyEventLimit} sự kiện/tháng`}
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                      <span className="text-slate-300">
-                        Thời hạn: {plan.DurationMonths} tháng
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* CTA Button - Mua ngay */}
-                  <button
-                    onClick={() => handleBuyNow(plan)}
-                    disabled={isCurrentPlan || purchasing === plan.Id}
-                    className={`w-full py-3 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
-                      isCurrentPlan
-                        ? "bg-slate-700 text-slate-400 cursor-not-allowed"
-                        : purchasing === plan.Id
-                        ? "bg-indigo-600/50 text-white cursor-wait"
-                        : isFree
-                        ? "bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/30"
-                        : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30"
-                    }`}
-                  >
-                    {purchasing === plan.Id ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Đang tạo đơn...</span>
-                      </>
-                    ) : isCurrentPlan ? (
-                      <span>Đã kích hoạt</span>
-                    ) : (
-                      <>
-                        <span>Mua ngay</span>
-                        <ArrowRight className="w-5 h-5" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              );
-            })}
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         {/* No Plans Available */}
-        {plans.length === 0 && !loading && (
+        {activePlans.length === 0 && !loading && (
           <div className="text-center py-16">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-800 rounded-full mb-4">
               <Crown className="w-8 h-8 text-slate-600" />
@@ -491,5 +570,70 @@ const Membership = () => {
     </div>
   );
 };
+
+// Cache helper functions
+function getCachedPlans(): MembershipPlanDto[] | null {
+  try {
+    const cached = localStorage.getItem(MEMBERSHIP_PLANS_CACHE_KEY);
+    if (!cached) return null;
+
+    const data = JSON.parse(cached);
+    const now = Date.now();
+
+    if (now - data.timestamp > CACHE_EXPIRY) {
+      localStorage.removeItem(MEMBERSHIP_PLANS_CACHE_KEY);
+      return null;
+    }
+
+    return data.plans;
+  } catch (error) {
+    console.error("Error reading plans cache:", error);
+    return null;
+  }
+}
+
+function cachePlans(plans: MembershipPlanDto[]) {
+  try {
+    const cache = {
+      plans,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(MEMBERSHIP_PLANS_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error("Error caching plans:", error);
+  }
+}
+
+function getCachedMembership(): CurrentMembershipDto | null | undefined {
+  try {
+    const cached = localStorage.getItem(MEMBERSHIP_CURRENT_CACHE_KEY);
+    if (!cached) return undefined;
+
+    const data = JSON.parse(cached);
+    const now = Date.now();
+
+    if (now - data.timestamp > CACHE_EXPIRY) {
+      localStorage.removeItem(MEMBERSHIP_CURRENT_CACHE_KEY);
+      return undefined;
+    }
+
+    return data.membership;
+  } catch (error) {
+    console.error("Error reading membership cache:", error);
+    return undefined;
+  }
+}
+
+function cacheMembership(membership: CurrentMembershipDto | null) {
+  try {
+    const cache = {
+      membership,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(MEMBERSHIP_CURRENT_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error("Error caching membership:", error);
+  }
+}
 
 export default Membership;

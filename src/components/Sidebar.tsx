@@ -45,17 +45,6 @@ export function Sidebar({
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  // Debug user data
-  useEffect(() => {
-    if (user) {
-      console.log("👤 Sidebar User Data:", user);
-      console.log("📧 User Email:", user.email);
-      console.log("👤 User Name:", user.fullName || user.userName);
-      console.log("🏫 University:", user.university);
-      console.log("⭐ Level:", user.level);
-    }
-  }, [user]);
-
   // Optimized menu structure - group related items
   const mainMenuItems = [
     { id: "dashboard", label: "Trang chủ", icon: Home },

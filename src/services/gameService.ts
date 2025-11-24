@@ -60,8 +60,6 @@ export class GameService {
   // Get all games with search and pagination
   static async getAllGames(params?: GameSearchParams): Promise<GameResponse> {
     try {
-      console.log('🔄 Fetching all games...', params);
-      
       const searchParams = new URLSearchParams();
       if (params?.query) searchParams.append('query', params.query);
       if (params?.genre) searchParams.append('genre', params.genre);
@@ -76,7 +74,6 @@ export class GameService {
         : API_CONFIG.ENDPOINTS.GAMES.BASE;
       
       const response = await authAxiosInstance.get<any>(url);
-      console.log('✅ Games API response:', response.data);
       
       // Handle the actual API response format
       const apiData = response.data;
@@ -103,11 +100,53 @@ export class GameService {
   // Get user's games library
   static async getMyGames(): Promise<Game[]> {
     try {
-      console.log('🔄 Fetching my games...');
-      const response = await authAxiosInstance.get<Game[]>(API_CONFIG.ENDPOINTS.GAMES.MY_GAMES);
-      console.log('✅ My games fetched:', response.data);
+      const response = await authAxiosInstance.get<any[]>(API_CONFIG.ENDPOINTS.GAMES.MY_GAMES);
       
-      return response.data.map(game => this.transformGame(game));
+      // API trả về format: [{ GameId, GameName, InGameName, Skill, AddedAt }]
+      const apiGames = response.data || [];
+      
+      // Transform từng game từ API format sang Game format
+      const transformedGames: Game[] = apiGames.map((apiGame: any) => {
+        const gameId = apiGame.GameId || apiGame.gameId;
+        const gameName = apiGame.GameName || apiGame.gameName || 'Unknown Game';
+        
+        // API có thể không trả về userGameInfo.id, dùng gameId làm id tạm thời
+        // Hoặc có thể cần gọi API khác để lấy full info
+        // Note: Có thể API trả về id ở field khác, cần check với backend
+        const userGameId = apiGame.id || apiGame.Id || apiGame.UserGameId || apiGame.userGameId || gameId;
+        
+        // Tạo UserGameInfo từ API response
+        const userGameInfo: UserGameInfo = {
+          id: userGameId,
+          gameId: gameId,
+          inGameName: apiGame.InGameName || apiGame.inGameName || '',
+          skillLevel: apiGame.Skill !== undefined ? apiGame.Skill : (apiGame.skillLevel || 1),
+          playTime: apiGame.PlayTime || apiGame.playTime || 0,
+          lastPlayed: apiGame.AddedAt || apiGame.addedAt || apiGame.LastPlayed || apiGame.lastPlayed || new Date().toISOString(),
+          isFavorite: apiGame.IsFavorite || apiGame.isFavorite || false,
+          achievements: apiGame.Achievements || apiGame.achievements || []
+        };
+        
+        // Tạo Game object với thông tin cơ bản
+        const game: Game = {
+          id: gameId,
+          name: gameName,
+          description: this.getGameDescription(gameName),
+          genre: this.getGameGenre(gameName),
+          platform: 'PC', // Default, có thể fetch từ API khác
+          releaseDate: new Date().toISOString(), // Default
+          developer: 'Unknown',
+          publisher: 'Unknown',
+          imageUrl: undefined,
+          icon: this.getGameIcon(gameName),
+          color: this.getGameColor(gameName),
+          isInLibrary: true,
+          userGameInfo: userGameInfo
+        };
+        
+        return game;
+      });
+      return transformedGames;
     } catch (error) {
       console.error('❌ Error fetching my games:', error);
       throw new Error('Không thể tải thư viện games');
@@ -120,21 +159,17 @@ export class GameService {
     skillLevel: number;
   }): Promise<void> {
     try {
-      console.log(`🔄 Adding game ${gameId} to library...`, userGameInfo);
-      
       // Convert skill level number to GameSkillLevel enum
       const skillLevel = this.convertSkillLevelToEnum(userGameInfo.skillLevel);
       
       // API endpoint: POST /api/me/games/{gameId}
-      const response = await authAxiosInstance.post(
+      await authAxiosInstance.post(
         `${API_CONFIG.ENDPOINTS.GAMES.MY_GAMES}/${gameId}`,
         {
           InGameName: userGameInfo.inGameName,
           Skill: skillLevel
         }
       );
-      
-      console.log('✅ Game added to library:', response.status);
     } catch (error: any) {
       console.error(`❌ Error adding game ${gameId} to library:`, error);
       
@@ -159,23 +194,19 @@ export class GameService {
     isFavorite?: boolean;
   }): Promise<void> {
     try {
-      console.log(`🔄 Updating user game ${userGameId}...`, updates);
-      
       // Convert skill level number to GameSkillLevel enum if provided
       const skillLevel = updates.skillLevel !== undefined 
         ? this.convertSkillLevelToEnum(updates.skillLevel) 
         : undefined;
       
       // API endpoint: PUT /api/me/games/{userGameId}
-      const response = await authAxiosInstance.put(
+      await authAxiosInstance.put(
         `${API_CONFIG.ENDPOINTS.GAMES.MY_GAMES}/${userGameId}`,
         {
           InGameName: updates.inGameName,
           Skill: skillLevel
         }
       );
-      
-      console.log('✅ User game updated:', response.status);
     } catch (error) {
       console.error(`❌ Error updating user game ${userGameId}:`, error);
       throw new Error('Không thể cập nhật thông tin game');
@@ -185,11 +216,8 @@ export class GameService {
   // Remove game from library
   static async removeGameFromLibrary(userGameId: string): Promise<void> {
     try {
-      console.log(`🔄 Removing game ${userGameId} from library...`);
-      
       // API endpoint: DELETE /api/me/games/{userGameId}
       await authAxiosInstance.delete(`${API_CONFIG.ENDPOINTS.GAMES.MY_GAMES}/${userGameId}`);
-      console.log('✅ Game removed from library');
     } catch (error) {
       console.error(`❌ Error removing game ${userGameId}:`, error);
       throw new Error('Không thể xóa game khỏi thư viện');
@@ -199,10 +227,7 @@ export class GameService {
   // Get game by ID
   static async getGameById(gameId: string): Promise<Game> {
     try {
-      console.log(`🔄 Fetching game ${gameId}...`);
       const response = await authAxiosInstance.get<Game>(`${API_CONFIG.ENDPOINTS.GAMES.BASE}/${gameId}`);
-      console.log('✅ Game fetched:', response.data);
-      
       return this.transformGame(response.data);
     } catch (error) {
       console.error(`❌ Error fetching game ${gameId}:`, error);

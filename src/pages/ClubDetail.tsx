@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { 
-  Hash, 
-  Lock, 
-  Users, 
-  Settings, 
-  Plus, 
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useParams } from "react-router-dom";
+import {
+  Hash,
+  Lock,
+  Users,
+  Settings,
+  Plus,
   Search,
   Mic,
   Crown,
@@ -13,91 +13,184 @@ import {
   Star,
   MessageSquare,
   UserPlus,
-  X
-} from 'lucide-react';
-import { RoomService } from '../services/roomService';
-import { ClubService } from '../services/clubService';
-import { Room, RoomJoinPolicy } from '../types/room';
-import { Club } from '../types/club';
-import { toast } from 'react-hot-toast';
-import ChatContainer from '../components/chat/ChatContainer';
-import ChatDebug from '../components/chat/ChatDebug';
-import { useChat } from '../hooks/useChat';
-import { useAuth } from '../contexts/AuthContext';
+  X,
+} from "lucide-react";
+import { RoomService } from "../services/roomService";
+import { ClubService } from "../services/clubService";
+import { Room, RoomJoinPolicy } from "../types/room";
+import { Club } from "../types/club";
+import { toast } from "react-hot-toast";
+import ChatContainer from "../components/chat/ChatContainer";
+import ChatDebug from "../components/chat/ChatDebug";
+import { useChat } from "../hooks/useChat";
+import { useAuth } from "../contexts/AuthContext";
+
+// Cache keys
+const CLUB_DETAIL_CACHE_KEY = "club_detail_cache";
+const ROOMS_CACHE_KEY = "rooms_cache";
+const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
 export default function ClubDetail() {
   const { clubId } = useParams<{ clubId: string }>();
   const { user } = useAuth();
   const { isConnected } = useChat();
-  
+
   // State
   const [club, setClub] = useState<Club | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
   // Create room modal state
   const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
   const [createRoomData, setCreateRoomData] = useState({
-    name: '',
-    description: '',
+    name: "",
+    description: "",
     joinPolicy: RoomJoinPolicy.Open,
-    password: '',
-    capacity: ''
+    password: "",
+    capacity: "",
   });
-  
-  // Load club and rooms
-  useEffect(() => {
-    if (clubId) {
-      loadClubAndRooms();
-    }
-  }, [clubId]);
 
-  const loadClubAndRooms = async () => {
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const loadClubAndRooms = useCallback(async () => {
     if (!clubId) return;
-    
+
     setLoading(true);
     try {
-      // Load club info
-      const clubData = await ClubService.getClubById(clubId);
+      // Try cache first
+      const clubCacheKey = `${CLUB_DETAIL_CACHE_KEY}_${clubId}`;
+      const roomsCacheKey = `${ROOMS_CACHE_KEY}_${clubId}`;
+      const cachedClub = getCachedClub(clubCacheKey);
+      const cachedRooms = getCachedRooms(roomsCacheKey);
+
+      if (cachedClub && cachedRooms) {
+        setClub(cachedClub);
+        setRooms(cachedRooms);
+        if (cachedRooms.length > 0) {
+          setSelectedRoom(cachedRooms[0]);
+        }
+        setLoading(false);
+
+        // Refresh in background
+        Promise.all([
+          ClubService.getClubById(clubId),
+          RoomService.getRoomsByClubId(clubId),
+        ])
+          .then(([clubData, roomsData]) => {
+            setClub(clubData);
+            setRooms(roomsData);
+            if (roomsData.length > 0) {
+              setSelectedRoom(roomsData[0]);
+            }
+            cacheClub(clubCacheKey, clubData);
+            cacheRooms(roomsCacheKey, roomsData);
+          })
+          .catch((err) => {
+            console.warn("Background refresh failed:", err);
+          });
+        return;
+      }
+
+      // Load from API
+      const [clubData, roomsData] = await Promise.all([
+        ClubService.getClubById(clubId),
+        RoomService.getRoomsByClubId(clubId),
+      ]);
+
       setClub(clubData);
-      
-      // Load rooms
-      const roomsData = await RoomService.getRoomsByClubId(clubId);
       setRooms(roomsData);
-      
+
       // Select first room by default
       if (roomsData.length > 0) {
         setSelectedRoom(roomsData[0]);
       }
+
+      // Cache results
+      cacheClub(clubCacheKey, clubData);
+      cacheRooms(roomsCacheKey, roomsData);
     } catch (error) {
-      console.error('❌ Error loading club and rooms:', error);
-      toast.error('Không thể tải thông tin club');
+      console.error("❌ Error loading club and rooms:", error);
+      // Try cache on error
+      const clubCacheKey = `${CLUB_DETAIL_CACHE_KEY}_${clubId}`;
+      const roomsCacheKey = `${ROOMS_CACHE_KEY}_${clubId}`;
+      const cachedClub = getCachedClub(clubCacheKey);
+      const cachedRooms = getCachedRooms(roomsCacheKey);
+
+      if (cachedClub) setClub(cachedClub);
+      if (cachedRooms) {
+        setRooms(cachedRooms);
+        if (cachedRooms.length > 0) {
+          setSelectedRoom(cachedRooms[0]);
+        }
+      }
+
+      if (!cachedClub || !cachedRooms) {
+        toast.error("Không thể tải thông tin club");
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [clubId]);
+
+  // Load club and rooms on mount and when clubId changes
+  useEffect(() => {
+    if (clubId) {
+      loadClubAndRooms();
+    }
+  }, [clubId, loadClubAndRooms]);
 
   const handleRoomClick = (room: Room) => {
     setSelectedRoom(room);
   };
 
-  const handleJoinRoom = async (room: Room) => {
-    try {
-      await RoomService.joinRoom(room.id.toString());
-      toast.success(`Đã tham gia ${room.name}`);
-      // Refresh rooms
-      loadClubAndRooms();
-    } catch (error) {
-      console.error('❌ Error joining room:', error);
-      toast.error('Không thể tham gia room');
-    }
-  };
+  const handleJoinRoom = useCallback(
+    async (room: Room) => {
+      // Optimistic update
+      setRooms((prev) =>
+        prev.map((r) =>
+          r.id === room.id
+            ? { ...r, isMember: true, membersCount: r.membersCount + 1 }
+            : r
+        )
+      );
 
-  const handleCreateRoom = async () => {
+      try {
+        await RoomService.joinRoom(room.id.toString());
+        toast.success(`Đã tham gia ${room.name}`);
+        // Refresh in background
+        loadClubAndRooms().catch(console.error);
+      } catch (error) {
+        console.error("❌ Error joining room:", error);
+        // Revert on error
+        setRooms((prev) =>
+          prev.map((r) =>
+            r.id === room.id
+              ? {
+                  ...r,
+                  isMember: false,
+                  membersCount: Math.max(0, r.membersCount - 1),
+                }
+              : r
+          )
+        );
+        toast.error("Không thể tham gia room");
+      }
+    },
+    [loadClubAndRooms]
+  );
+
+  const handleCreateRoom = useCallback(async () => {
     if (!clubId || !createRoomData.name.trim()) {
-      toast.error('Vui lòng nhập tên room');
+      toast.error("Vui lòng nhập tên room");
       return;
     }
 
@@ -108,40 +201,54 @@ export default function ClubDetail() {
         description: createRoomData.description.trim() || undefined,
         joinPolicy: createRoomData.joinPolicy,
         password: createRoomData.password.trim() || undefined,
-        capacity: createRoomData.capacity ? parseInt(createRoomData.capacity) : undefined
+        capacity: createRoomData.capacity
+          ? parseInt(createRoomData.capacity)
+          : undefined,
       };
 
-      await RoomService.createRoom(roomData);
+      const newRoom = await RoomService.createRoom(roomData);
       toast.success(`Đã tạo room "${createRoomData.name}" thành công`);
-      
+
+      // Optimistic update - add new room to list
+      setRooms((prev) => [...prev, newRoom]);
+      setSelectedRoom(newRoom);
+
       // Reset form
       setCreateRoomData({
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         joinPolicy: RoomJoinPolicy.Open,
-        password: '',
-        capacity: ''
+        password: "",
+        capacity: "",
       });
       setShowCreateRoomModal(false);
-      
-      // Refresh rooms
-      loadClubAndRooms();
+
+      // Refresh in background to get full data
+      loadClubAndRooms().catch(console.error);
     } catch (error) {
-      console.error('❌ Error creating room:', error);
-      toast.error('Không thể tạo room');
+      console.error("❌ Error creating room:", error);
+      toast.error("Không thể tạo room");
     }
-  };
+  }, [clubId, createRoomData, loadClubAndRooms]);
 
   const getRoomIcon = (room: Room) => {
     const nameLower = room.name.toLowerCase();
-    if (nameLower.includes('voice') || nameLower.includes('voice-chat')) return <Mic className="w-4 h-4" />;
-    if (nameLower.includes('general') || nameLower.includes('chung')) return <Hash className="w-4 h-4" />;
-    if (nameLower.includes('announcement') || nameLower.includes('thông báo')) return <MessageSquare className="w-4 h-4" />;
-    if (nameLower.includes('coaching') || nameLower.includes('hướng dẫn')) return <Star className="w-4 h-4" />;
-    if (nameLower.includes('tournament') || nameLower.includes('giải')) return <Crown className="w-4 h-4" />;
-    if (nameLower.includes('strategy') || nameLower.includes('chiến thuật')) return <Shield className="w-4 h-4" />;
-    if (nameLower.includes('lfg') || nameLower.includes('tìm nhóm')) return <UserPlus className="w-4 h-4" />;
-    if (nameLower.includes('meme') || nameLower.includes('fun')) return <MessageSquare className="w-4 h-4" />;
+    if (nameLower.includes("voice") || nameLower.includes("voice-chat"))
+      return <Mic className="w-4 h-4" />;
+    if (nameLower.includes("general") || nameLower.includes("chung"))
+      return <Hash className="w-4 h-4" />;
+    if (nameLower.includes("announcement") || nameLower.includes("thông báo"))
+      return <MessageSquare className="w-4 h-4" />;
+    if (nameLower.includes("coaching") || nameLower.includes("hướng dẫn"))
+      return <Star className="w-4 h-4" />;
+    if (nameLower.includes("tournament") || nameLower.includes("giải"))
+      return <Crown className="w-4 h-4" />;
+    if (nameLower.includes("strategy") || nameLower.includes("chiến thuật"))
+      return <Shield className="w-4 h-4" />;
+    if (nameLower.includes("lfg") || nameLower.includes("tìm nhóm"))
+      return <UserPlus className="w-4 h-4" />;
+    if (nameLower.includes("meme") || nameLower.includes("fun"))
+      return <MessageSquare className="w-4 h-4" />;
     return <Hash className="w-4 h-4" />;
   };
 
@@ -158,10 +265,15 @@ export default function ClubDetail() {
     }
   };
 
-  const filteredRooms = rooms.filter(room =>
-    room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    room.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Memoize filtered rooms
+  const filteredRooms = useMemo(() => {
+    const query = debouncedSearchQuery.toLowerCase();
+    return rooms.filter(
+      (room) =>
+        room.name.toLowerCase().includes(query) ||
+        room.description.toLowerCase().includes(query)
+    );
+  }, [rooms, debouncedSearchQuery]);
 
   if (loading) {
     return (
@@ -195,7 +307,9 @@ export default function ClubDetail() {
             </div>
             <div>
               <h1 className="font-semibold text-lg truncate">{club.name}</h1>
-              <p className="text-xs text-gray-400">{club.membersCount} thành viên</p>
+              <p className="text-xs text-gray-400">
+                {club.membersCount} thành viên
+              </p>
             </div>
           </div>
         </div>
@@ -238,8 +352,8 @@ export default function ClubDetail() {
                   key={room.id}
                   className={`w-full flex items-center space-x-3 px-2 py-2 rounded-md text-left transition-colors group ${
                     selectedRoom?.id === room.id
-                      ? 'bg-gray-600 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      ? "bg-gray-600 text-white"
+                      : "text-gray-300 hover:bg-gray-700 hover:text-white"
                   }`}
                 >
                   <button
@@ -251,7 +365,9 @@ export default function ClubDetail() {
                       {getJoinPolicyIcon(room.joinPolicy)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{room.name}</div>
+                      <div className="text-sm font-medium truncate">
+                        {room.name}
+                      </div>
                       <div className="text-xs text-gray-400 flex items-center space-x-2">
                         <Users className="w-3 h-3" />
                         <span>{room.membersCount}</span>
@@ -317,7 +433,10 @@ export default function ClubDetail() {
                 <h2 className="font-semibold">{selectedRoom.name}</h2>
                 {getJoinPolicyIcon(selectedRoom.joinPolicy)}
                 {isConnected && (
-                  <div className="w-2 h-2 bg-green-500 rounded-full" title="Connected to chat" />
+                  <div
+                    className="w-2 h-2 bg-green-500 rounded-full"
+                    title="Connected to chat"
+                  />
                 )}
               </div>
               <div className="flex-1" />
@@ -337,7 +456,9 @@ export default function ClubDetail() {
             {/* Room Description */}
             {selectedRoom.description && (
               <div className="bg-gray-800 border-b border-gray-700 p-3">
-                <p className="text-sm text-gray-300">{selectedRoom.description}</p>
+                <p className="text-sm text-gray-300">
+                  {selectedRoom.description}
+                </p>
                 <div className="flex items-center space-x-4 mt-2 text-xs text-gray-400">
                   <div className="flex items-center space-x-1">
                     <Users className="w-3 h-3" />
@@ -358,7 +479,7 @@ export default function ClubDetail() {
             {/* Chat Area */}
             {selectedRoom.isMember ? (
               <ChatContainer
-                roomId={selectedRoom.id}
+                roomId={selectedRoom.id.toString()}
                 currentUserId={user?.id?.toString()}
                 className="flex-1"
               />
@@ -367,7 +488,9 @@ export default function ClubDetail() {
                 <div className="max-w-4xl mx-auto">
                   <div className="text-center text-gray-400 py-8">
                     <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-xl font-semibold mb-2">Chào mừng đến với {selectedRoom.name}!</h3>
+                    <h3 className="text-xl font-semibold mb-2">
+                      Chào mừng đến với {selectedRoom.name}!
+                    </h3>
                     <p className="text-sm mb-4">
                       Bạn cần tham gia room để có thể trò chuyện.
                     </p>
@@ -386,8 +509,12 @@ export default function ClubDetail() {
           <div className="flex-1 flex items-center justify-center bg-gray-900">
             <div className="text-center text-gray-400">
               <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <h3 className="text-xl font-semibold mb-2">Chọn một room để bắt đầu</h3>
-              <p className="text-sm">Chọn room từ danh sách bên trái để bắt đầu trò chuyện</p>
+              <h3 className="text-xl font-semibold mb-2">
+                Chọn một room để bắt đầu
+              </h3>
+              <p className="text-sm">
+                Chọn room từ danh sách bên trái để bắt đầu trò chuyện
+              </p>
             </div>
           </div>
         )}
@@ -416,7 +543,12 @@ export default function ClubDetail() {
                 <input
                   type="text"
                   value={createRoomData.name}
-                  onChange={(e) => setCreateRoomData(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateRoomData((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
+                  }
                   placeholder="Nhập tên room..."
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:border-blue-500"
                 />
@@ -429,7 +561,12 @@ export default function ClubDetail() {
                 </label>
                 <textarea
                   value={createRoomData.description}
-                  onChange={(e) => setCreateRoomData(prev => ({ ...prev, description: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateRoomData((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
                   placeholder="Mô tả về room..."
                   rows={3}
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:border-blue-500 resize-none"
@@ -443,17 +580,29 @@ export default function ClubDetail() {
                 </label>
                 <select
                   value={createRoomData.joinPolicy}
-                  onChange={(e) => setCreateRoomData(prev => ({ ...prev, joinPolicy: e.target.value as RoomJoinPolicy }))}
+                  onChange={(e) =>
+                    setCreateRoomData((prev) => ({
+                      ...prev,
+                      joinPolicy: e.target.value as RoomJoinPolicy,
+                    }))
+                  }
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:border-blue-500"
                 >
-                  <option value={RoomJoinPolicy.Open}>Mở - Ai cũng có thể tham gia</option>
-                  <option value={RoomJoinPolicy.RequiresApproval}>Yêu cầu phê duyệt</option>
-                  <option value={RoomJoinPolicy.RequiresPassword}>Bảo vệ bằng mật khẩu</option>
+                  <option value={RoomJoinPolicy.Open}>
+                    Mở - Ai cũng có thể tham gia
+                  </option>
+                  <option value={RoomJoinPolicy.RequiresApproval}>
+                    Yêu cầu phê duyệt
+                  </option>
+                  <option value={RoomJoinPolicy.RequiresPassword}>
+                    Bảo vệ bằng mật khẩu
+                  </option>
                 </select>
               </div>
 
               {/* Password (if password protected) */}
-              {createRoomData.joinPolicy === RoomJoinPolicy.RequiresPassword && (
+              {createRoomData.joinPolicy ===
+                RoomJoinPolicy.RequiresPassword && (
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Mật khẩu *
@@ -461,7 +610,12 @@ export default function ClubDetail() {
                   <input
                     type="password"
                     value={createRoomData.password}
-                    onChange={(e) => setCreateRoomData(prev => ({ ...prev, password: e.target.value }))}
+                    onChange={(e) =>
+                      setCreateRoomData((prev) => ({
+                        ...prev,
+                        password: e.target.value,
+                      }))
+                    }
                     placeholder="Nhập mật khẩu..."
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:border-blue-500"
                   />
@@ -476,7 +630,12 @@ export default function ClubDetail() {
                 <input
                   type="number"
                   value={createRoomData.capacity}
-                  onChange={(e) => setCreateRoomData(prev => ({ ...prev, capacity: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateRoomData((prev) => ({
+                      ...prev,
+                      capacity: e.target.value,
+                    }))
+                  }
                   placeholder="Số lượng thành viên tối đa..."
                   min="1"
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:border-blue-500"
@@ -502,9 +661,74 @@ export default function ClubDetail() {
           </div>
         </div>
       )}
-      
+
       {/* Debug Panel - Remove in production */}
       <ChatDebug />
     </div>
   );
+}
+
+// Cache helper functions
+function getCachedClub(key: string): Club | null {
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+
+    const data = JSON.parse(cached);
+    const now = Date.now();
+
+    if (now - data.timestamp > CACHE_EXPIRY) {
+      localStorage.removeItem(key);
+      return null;
+    }
+
+    return data.club;
+  } catch (error) {
+    console.error("Error reading club cache:", error);
+    return null;
+  }
+}
+
+function cacheClub(key: string, club: Club) {
+  try {
+    const cache = {
+      club,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(key, JSON.stringify(cache));
+  } catch (error) {
+    console.error("Error caching club:", error);
+  }
+}
+
+function getCachedRooms(key: string): Room[] | null {
+  try {
+    const cached = localStorage.getItem(key);
+    if (!cached) return null;
+
+    const data = JSON.parse(cached);
+    const now = Date.now();
+
+    if (now - data.timestamp > CACHE_EXPIRY) {
+      localStorage.removeItem(key);
+      return null;
+    }
+
+    return data.rooms;
+  } catch (error) {
+    console.error("Error reading rooms cache:", error);
+    return null;
+  }
+}
+
+function cacheRooms(key: string, rooms: Room[]) {
+  try {
+    const cache = {
+      rooms,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(key, JSON.stringify(cache));
+  } catch (error) {
+    console.error("Error caching rooms:", error);
+  }
 }

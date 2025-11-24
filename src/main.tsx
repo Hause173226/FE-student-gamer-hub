@@ -10,7 +10,6 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 // Export signalRService ra global để debug dễ hơn
 if (import.meta.env.DEV) {
   (window as any).signalRService = signalRService;
-  console.log("🔧 Dev mode: signalRService available globally");
 }
 
 createRoot(document.getElementById("root")!).render(
