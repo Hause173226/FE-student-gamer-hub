@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Trophy,
   Star,
@@ -18,6 +19,7 @@ import DashboardService, {
 import GameService from "../services/gameService";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "react-hot-toast";
+import { ContentSkeleton } from "../components/ContentSkeleton";
 
 // Cache keys
 const DASHBOARD_CACHE_KEY = "dashboard_cache";
@@ -31,6 +33,7 @@ interface DashboardCache {
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(
     null
   );
@@ -38,7 +41,17 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [myGamesCount, setMyGamesCount] = useState(0);
 
+  // Use ref to track if component is mounted and prevent multiple loads
+  const isMountedRef = useRef(true);
+  const hasLoadedRef = useRef(false);
+
   const loadDashboardData = useCallback(async () => {
+    // Don't load if component is not mounted
+    if (!isMountedRef.current) {
+      console.log('⚠️ Dashboard component unmounted, skipping data load');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -85,6 +98,12 @@ const Dashboard: React.FC = () => {
         GameService.getMyGames().catch(() => []),
       ]);
 
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) {
+        console.log('⚠️ Dashboard component unmounted during data load, skipping state update');
+        return;
+      }
+
       if (dashboardResult.status === "fulfilled") {
         setDashboardData(dashboardResult.value);
       }
@@ -102,6 +121,11 @@ const Dashboard: React.FC = () => {
         );
       }
     } catch (err) {
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) {
+        console.log('⚠️ Dashboard component unmounted during error, skipping state update');
+        return;
+      }
       console.error("❌ Dashboard error:", err);
 
       // Try cache on error
@@ -115,14 +139,42 @@ const Dashboard: React.FC = () => {
         setDashboardData(mockData);
       }
     } finally {
-      setLoading(false);
+      // Only update loading state if component is still mounted
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   // Load dashboard data on mount
   useEffect(() => {
+    // Only load if we're actually on the dashboard route
+    const isDashboardRoute = location.pathname === '/dashboard' || location.pathname === '/';
+    
+    if (!isDashboardRoute) {
+      // Reset hasLoadedRef when navigating away from dashboard
+      hasLoadedRef.current = false;
+      isMountedRef.current = false;
+      return;
+    }
+
+    // Prevent multiple loads on the same mount
+    if (hasLoadedRef.current && isMountedRef.current) {
+      return;
+    }
+
+    // Set mounted flag
+    isMountedRef.current = true;
+    hasLoadedRef.current = true;
+    
+    // Load data only once when component mounts on dashboard route
     loadDashboardData();
-  }, [loadDashboardData]);
+    
+    // Cleanup: prevent state updates if component unmounts
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [location.pathname, loadDashboardData]);
 
   const handleCompleteQuest = useCallback(
     async (quest: TodayQuest) => {
@@ -318,10 +370,19 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-          <p className="text-gray-300">Đang tải dashboard...</p>
+      <div className="min-h-screen bg-gray-900">
+        <div className="bg-gray-800 shadow-sm border-b border-gray-700">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="h-12 bg-gray-700 rounded w-1/3 skeleton-item"></div>
+            <div className="h-4 bg-gray-700 rounded w-1/4 mt-2 skeleton-item" style={{ animationDelay: '100ms' }}></div>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <ContentSkeleton type="stats" count={5} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <ContentSkeleton type="card" count={1} />
+            <ContentSkeleton type="card" count={1} />
+          </div>
         </div>
       </div>
     );
@@ -385,7 +446,7 @@ const Dashboard: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8 progressive-list-fast">
           {/* Points Card */}
           <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 text-white">
             <div className="flex items-center justify-between">
@@ -523,7 +584,7 @@ const Dashboard: React.FC = () => {
               </span>
             </div>
 
-            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+            <div className="space-y-4 max-h-96 overflow-y-auto pr-2 progressive-list">
               {(todayQuests || []).map((quest: TodayQuest, index: number) => (
                 <div
                   key={quest.id || `quest-${index}`}
@@ -615,7 +676,7 @@ const Dashboard: React.FC = () => {
               </span>
             </div>
 
-            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+            <div className="space-y-4 max-h-96 overflow-y-auto pr-2 progressive-list">
               {(todayEvents || []).map((event: TodayEvent, index) => (
                 <div
                   key={event.id || `event-${index}`}

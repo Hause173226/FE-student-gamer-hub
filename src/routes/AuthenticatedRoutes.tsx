@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { MainLayout } from "../layouts/MainLayout";
+import { PageTransition } from "../components/PageTransition";
 import Dashboard from "../pages/Dashboard";
 import Games from "../pages/Games";
 import MyGames from "../pages/MyGames";
@@ -35,29 +36,31 @@ export const AuthenticatedApp: React.FC = () => {
 
   return (
     <MainLayout currentView={currentView} onViewChange={setCurrentView}>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/games" element={<Games />} />
-        <Route path="/my-games" element={<MyGames />} />
-        <Route path="/quests" element={<Quests />} />
-        <Route path="/communities" element={<Communities />} />
-        <Route path="/communities/:communityId" element={<CommunityDetail />} />
-        <Route path="/clubs/:clubId" element={<ClubDetail />} />
-        <Route path="/friends" element={<Friends />} />
-        <Route path="/rooms" element={<Rooms />} />
-        <Route path="/chat/dm/:otherId" element={<ChatPage />} />
-        <Route path="/chat-groups" element={<ChatGroups />} />
-        <Route path="/chat/:groupId" element={<DiscordChat />} />
-        <Route path="/test-login" element={<TestLogin />} />
-        <Route path="/events" element={<Events />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/profile-settings" element={<ProfileSettings />} />
-        <Route path="/membership" element={<Membership />} />
-        <Route path="/membership/success" element={<MembershipSuccess />} />
-        <Route path="/debug-token" element={<DebugToken />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      <PageTransition>
+        <Routes location={location}>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/games" element={<Games />} />
+          <Route path="/my-games" element={<MyGames />} />
+          <Route path="/quests" element={<Quests />} />
+          <Route path="/communities" element={<Communities />} />
+          <Route path="/communities/:communityId" element={<CommunityDetail />} />
+          <Route path="/clubs/:clubId" element={<ClubDetail />} />
+          <Route path="/friends" element={<Friends />} />
+          <Route path="/rooms" element={<Rooms />} />
+          <Route path="/chat/dm/:otherId" element={<ChatPage />} />
+          <Route path="/chat-groups" element={<ChatGroups />} />
+          <Route path="/chat/:groupId" element={<DiscordChat />} />
+          <Route path="/test-login" element={<TestLogin />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile-settings" element={<ProfileSettings />} />
+          <Route path="/membership" element={<Membership />} />
+          <Route path="/membership/success" element={<MembershipSuccess />} />
+          <Route path="/debug-token" element={<DebugToken />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </PageTransition>
     </MainLayout>
   );
 };

@@ -107,8 +107,8 @@ export class GameService {
       
       // Transform từng game từ API format sang Game format
       const transformedGames: Game[] = apiGames.map((apiGame: any) => {
-        const gameId = apiGame.GameId || apiGame.gameId;
-        const gameName = apiGame.GameName || apiGame.gameName || 'Unknown Game';
+        const gameId = apiGame.GameId || apiGame.gameId || apiGame.Id || apiGame.id;
+        const gameName = apiGame.GameName || apiGame.gameName || apiGame.Name || apiGame.name || 'Unknown Game';
         
         // API có thể không trả về userGameInfo.id, dùng gameId làm id tạm thời
         // Hoặc có thể cần gọi API khác để lấy full info
@@ -120,7 +120,7 @@ export class GameService {
           id: userGameId,
           gameId: gameId,
           inGameName: apiGame.InGameName || apiGame.inGameName || '',
-          skillLevel: apiGame.Skill !== undefined ? apiGame.Skill : (apiGame.skillLevel || 1),
+          skillLevel: this.convertSkillLevelFromEnum(apiGame.Skill !== undefined ? apiGame.Skill : (apiGame.skillLevel || 1)),
           playTime: apiGame.PlayTime || apiGame.playTime || 0,
           lastPlayed: apiGame.AddedAt || apiGame.addedAt || apiGame.LastPlayed || apiGame.lastPlayed || new Date().toISOString(),
           isFavorite: apiGame.IsFavorite || apiGame.isFavorite || false,
@@ -146,11 +146,23 @@ export class GameService {
         
         return game;
       });
+      
       return transformedGames;
     } catch (error) {
       console.error('❌ Error fetching my games:', error);
       throw new Error('Không thể tải thư viện games');
     }
+  }
+  
+  // Convert skill level enum from backend to number (0=Casual, 1=Intermediate, 2=Competitive)
+  private static convertSkillLevelFromEnum(enumValue: number): number {
+    // Backend returns 0, 1, 2
+    // Frontend expects 1-10 scale
+    // Map: 0 -> 2, 1 -> 5, 2 -> 8
+    if (enumValue === 0) return 2; // Casual
+    if (enumValue === 1) return 5; // Intermediate
+    if (enumValue === 2) return 8; // Competitive
+    return enumValue; // If already in 1-10 scale, return as is
   }
 
   // Add game to library
@@ -237,9 +249,12 @@ export class GameService {
 
   // Transform backend Game to frontend Game
   private static transformGame(game: any): Game {
-    const gameName = game?.Name || game?.name || 'Unknown Game';
+    // Handle both PascalCase and camelCase, and also GameName/GameId from UserGameDto
+    const gameName = game?.Name || game?.name || game?.GameName || game?.gameName || 'Unknown Game';
+    const gameId = game?.Id || game?.id || game?.GameId || game?.gameId || '';
+    
     return {
-      id: game?.Id || game?.id || '',
+      id: gameId,
       name: gameName,
       description: game?.Description || game?.description || this.getGameDescription(gameName),
       genre: game?.Genre || game?.genre || this.getGameGenre(gameName),
@@ -272,40 +287,72 @@ export class GameService {
   // Get game icon based on name
   private static getGameIcon(name: string): string {
     if (!name || typeof name !== 'string') return '🎮';
-    const nameLower = name.toLowerCase();
+    const nameLower = name.toLowerCase().replace(/[^a-z0-9]/g, ''); // Remove special chars for matching
+    const nameOriginal = name.toLowerCase();
+    
+    // Exact matches first
+    if (nameOriginal.includes('valorant')) return '🎯';
+    if (nameOriginal.includes('league of legends') || nameOriginal.includes('lol')) return '⚔️';
+    if (nameOriginal.includes('dota 2') || nameOriginal.includes('dota2')) return '🗡️';
+    if (nameOriginal.includes('counter-strike') || nameOriginal.includes('cs2') || nameOriginal.includes('cs 2')) return '🔫';
+    if (nameOriginal.includes('overwatch 2') || nameOriginal.includes('overwatch2')) return '🛡️';
+    if (nameOriginal.includes('apex legends') || nameOriginal.includes('apex')) return '🏹';
+    if (nameOriginal.includes('fortnite')) return '🏗️';
+    if (nameOriginal.includes('pubg') || nameOriginal.includes('battlegrounds')) return '🎯';
+    if (nameOriginal.includes('rocket league')) return '🏎️';
+    if (nameOriginal.includes('genshin impact') || nameOriginal.includes('genshin')) return '🌟';
+    
+    // Partial matches
     if (nameLower.includes('valorant')) return '🎯';
     if (nameLower.includes('league') || nameLower.includes('lol')) return '⚔️';
     if (nameLower.includes('dota')) return '🗡️';
-    if (nameLower.includes('cs') || nameLower.includes('counter')) return '🔫';
+    if (nameLower.includes('counter') || nameLower.includes('cs')) return '🔫';
     if (nameLower.includes('overwatch')) return '🛡️';
     if (nameLower.includes('apex')) return '🏹';
     if (nameLower.includes('fortnite')) return '🏗️';
     if (nameLower.includes('pubg')) return '🎯';
+    if (nameLower.includes('rocket')) return '🏎️';
+    if (nameLower.includes('genshin')) return '🌟';
     if (nameLower.includes('minecraft')) return '🧱';
     if (nameLower.includes('among')) return '👥';
     if (nameLower.includes('mobile') || nameLower.includes('mlbb')) return '📱';
-    if (nameLower.includes('rocket')) return '🏎️';
-    if (nameLower.includes('genshin')) return '🌟';
+    
     return '🎮'; // Default
   }
 
   // Get game color based on name
   private static getGameColor(name: string): string {
     if (!name || typeof name !== 'string') return 'from-gray-500 to-gray-600';
-    const nameLower = name.toLowerCase();
+    const nameLower = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const nameOriginal = name.toLowerCase();
+    
+    // Exact matches first
+    if (nameOriginal.includes('valorant')) return 'from-red-500 to-pink-600';
+    if (nameOriginal.includes('league of legends') || nameOriginal.includes('lol')) return 'from-blue-500 to-cyan-600';
+    if (nameOriginal.includes('dota 2') || nameOriginal.includes('dota2')) return 'from-purple-500 to-indigo-600';
+    if (nameOriginal.includes('counter-strike') || nameOriginal.includes('cs2') || nameOriginal.includes('cs 2')) return 'from-orange-500 to-red-600';
+    if (nameOriginal.includes('overwatch 2') || nameOriginal.includes('overwatch2')) return 'from-yellow-500 to-orange-600';
+    if (nameOriginal.includes('apex legends') || nameOriginal.includes('apex')) return 'from-green-500 to-emerald-600';
+    if (nameOriginal.includes('fortnite')) return 'from-pink-500 to-rose-600';
+    if (nameOriginal.includes('pubg') || nameOriginal.includes('battlegrounds')) return 'from-indigo-500 to-purple-600';
+    if (nameOriginal.includes('rocket league')) return 'from-orange-500 to-yellow-600';
+    if (nameOriginal.includes('genshin impact') || nameOriginal.includes('genshin')) return 'from-cyan-500 to-blue-600';
+    
+    // Partial matches
     if (nameLower.includes('valorant')) return 'from-red-500 to-pink-600';
     if (nameLower.includes('league') || nameLower.includes('lol')) return 'from-blue-500 to-cyan-600';
     if (nameLower.includes('dota')) return 'from-purple-500 to-indigo-600';
-    if (nameLower.includes('cs') || nameLower.includes('counter')) return 'from-orange-500 to-red-600';
+    if (nameLower.includes('counter') || nameLower.includes('cs')) return 'from-orange-500 to-red-600';
     if (nameLower.includes('overwatch')) return 'from-yellow-500 to-orange-600';
     if (nameLower.includes('apex')) return 'from-green-500 to-emerald-600';
     if (nameLower.includes('fortnite')) return 'from-pink-500 to-rose-600';
     if (nameLower.includes('pubg')) return 'from-indigo-500 to-purple-600';
+    if (nameLower.includes('rocket')) return 'from-orange-500 to-yellow-600';
+    if (nameLower.includes('genshin')) return 'from-cyan-500 to-blue-600';
     if (nameLower.includes('minecraft')) return 'from-emerald-500 to-teal-600';
     if (nameLower.includes('among')) return 'from-cyan-500 to-blue-600';
     if (nameLower.includes('mobile') || nameLower.includes('mlbb')) return 'from-amber-500 to-yellow-600';
-    if (nameLower.includes('rocket')) return 'from-orange-500 to-yellow-600';
-    if (nameLower.includes('genshin')) return 'from-cyan-500 to-blue-600';
+    
     return 'from-gray-500 to-gray-600'; // Default
   }
 

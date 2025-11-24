@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -8,7 +8,6 @@ import {
   Filter,
   Lock,
   Globe,
-  Loader2,
   Gamepad2,
   BookOpen,
   Music,
@@ -19,6 +18,7 @@ import { Community } from "../types/community";
 import CommunityService from "../services/communityService";
 import { DebugInfo } from "../components/DebugInfo";
 import toast from "react-hot-toast";
+import { ContentSkeleton } from "../components/ContentSkeleton";
 
 export function Communities() {
   const navigate = useNavigate();
@@ -41,60 +41,99 @@ export function Communities() {
   const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [pagination, setPagination] = useState({
+    page: 0,
+    size: 20,
+    totalCount: 0,
+    totalPages: 0,
+    hasPrevious: false,
+    hasNext: false,
+  });
+  const [orderBy, setOrderBy] = useState<"trending" | "newest">("trending");
 
-  // Debounce search
+  const loadCommunities = useCallback(
+    async (reset: boolean = false) => {
+      setLoading(true);
+      try {
+        // Try cache first (only for first page and no search)
+        if (reset && pagination.page === 0 && !searchQuery) {
+          const cached = getCachedCommunities();
+          if (cached) {
+            setCommunities(cached);
+            setLoading(false);
+
+            // Refresh in background
+            CommunityService.discoverCommunities({
+              query: undefined,
+              offset: 0,
+              limit: pagination.size,
+              orderBy: orderBy,
+            })
+              .then((result) => {
+                setCommunities(result.communities);
+                setPagination(result.pagination);
+                cacheCommunities(result.communities);
+              })
+              .catch((err) => {
+                console.warn("Background refresh failed:", err);
+              });
+            return;
+          }
+        }
+
+        const result = await CommunityService.discoverCommunities({
+          query: searchQuery || undefined,
+          offset: reset ? 0 : pagination.page * pagination.size,
+          limit: pagination.size,
+          orderBy: orderBy,
+        });
+
+        if (reset) {
+          setCommunities(result.communities);
+        } else {
+          setCommunities((prev) => [...prev, ...result.communities]);
+        }
+
+        setPagination(result.pagination);
+
+        // Cache only first page with no filters
+        if (reset && pagination.page === 0 && !searchQuery) {
+          cacheCommunities(result.communities);
+        }
+      } catch (error) {
+        console.error("❌ Error loading communities:", error);
+        // Try cache on error
+        const cached = getCachedCommunities();
+        if (cached) {
+          setCommunities(cached);
+        } else {
+          toast.error(
+            "Không thể tải danh sách cộng đồng. Vui lòng kiểm tra kết nối và đăng nhập lại."
+          );
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [searchQuery, orderBy]
+  );
+
+  // Load communities on mount and when orderBy changes
+  useEffect(() => {
+    loadCommunities(true);
+  }, [orderBy, loadCommunities]);
+
+  // Handle search with debounce
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 300);
+      if (searchQuery !== undefined) {
+        setPagination((prev) => ({ ...prev, page: 0 }));
+        loadCommunities(true);
+      }
+    }, 500);
+
     return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  const loadCommunities = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Try cache first
-      const cached = getCachedCommunities();
-      if (cached) {
-        setCommunities(cached);
-        setLoading(false);
-
-        // Refresh in background
-        CommunityService.getAllCommunities()
-          .then((data) => {
-            setCommunities(data);
-            cacheCommunities(data);
-          })
-          .catch((err) => {
-            console.warn("Background refresh failed:", err);
-          });
-        return;
-      }
-
-      const data = await CommunityService.getAllCommunities();
-      setCommunities(data);
-      cacheCommunities(data);
-    } catch (error) {
-      console.error("❌ Error loading communities:", error);
-      // Try cache on error
-      const cached = getCachedCommunities();
-      if (cached) {
-        setCommunities(cached);
-      } else {
-        toast.error(
-          "Không thể tải danh sách cộng đồng. Vui lòng kiểm tra kết nối và đăng nhập lại."
-        );
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Load communities from API
-  useEffect(() => {
-    loadCommunities();
-  }, [loadCommunities]);
+  }, [searchQuery, loadCommunities]);
 
   const handleCreateCommunity = useCallback(async () => {
     if (!createForm.name.trim() || !createForm.description.trim()) {
@@ -116,25 +155,12 @@ export function Communities() {
       toast.success("Tạo cộng đồng thành công!");
 
       // Refresh in background
-      loadCommunities().catch(console.error);
+      loadCommunities(true).catch(console.error);
     } catch (error) {
       console.error("❌ Error creating community:", error);
       toast.error("Không thể tạo cộng đồng mới");
     }
   }, [createForm, loadCommunities]);
-
-  // Memoize filtered communities
-  const filteredCommunities = useMemo(() => {
-    const query = debouncedSearchQuery.toLowerCase();
-    return communities.filter((community) => {
-      const matchesSearch =
-        community.name.toLowerCase().includes(query) ||
-        community.description.toLowerCase().includes(query) ||
-        (community.category &&
-          community.category.toLowerCase().includes(query));
-      return matchesSearch;
-    });
-  }, [communities, debouncedSearchQuery]);
 
   const getCommunityIcon = (category?: string) => {
     switch (category) {
@@ -204,39 +230,53 @@ export function Communities() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex space-x-1 mb-6 bg-gray-800 rounded-lg p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setSelectedTab(tab.id)}
-            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              selectedTab === tab.id
-                ? "bg-indigo-600 text-white"
-                : "text-gray-400 hover:text-white hover:bg-gray-700"
-            }`}
+      {/* Tabs and Order By */}
+      <div className="flex flex-col lg:flex-row gap-4 mb-6">
+        <div className="flex space-x-1 bg-gray-800 rounded-lg p-1 flex-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setSelectedTab(tab.id)}
+              className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                selectedTab === tab.id
+                  ? "bg-indigo-600 text-white"
+                  : "text-gray-400 hover:text-white hover:bg-gray-700"
+              }`}
+            >
+              <span>{tab.label}</span>
+              {tab.count && (
+                <span className="bg-gray-600 text-xs px-2 py-1 rounded-full">
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Order By Selector */}
+        <div className="flex items-center space-x-2">
+          <span className="text-gray-400 text-sm">Sắp xếp:</span>
+          <select
+            value={orderBy}
+            onChange={(e) => {
+              setOrderBy(e.target.value as "trending" | "newest");
+              setCommunities([]);
+              setPagination((prev) => ({ ...prev, page: 0 }));
+            }}
+            className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-indigo-500"
           >
-            <span>{tab.label}</span>
-            {tab.count && (
-              <span className="bg-gray-600 text-xs px-2 py-1 rounded-full">
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
+            <option value="trending">Phổ biến</option>
+            <option value="newest">Mới nhất</option>
+          </select>
+        </div>
       </div>
 
       {/* Content */}
       {selectedTab === "discover" && (
         <>
           {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <div className="text-center">
-                <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
-                <p className="text-gray-400">Đang tải cộng đồng...</p>
-              </div>
-            </div>
-          ) : filteredCommunities.length === 0 ? (
+            <ContentSkeleton type="grid" count={6} />
+          ) : communities.length === 0 ? (
             <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
               <Gamepad2 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-400 text-lg">
@@ -247,73 +287,116 @@ export function Communities() {
               </p>
             </div>
           ) : (
-            <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredCommunities.map((community) => (
-                <div
-                  key={community.id}
-                  onClick={() => navigate(`/communities/${community.id}`)}
-                  className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-indigo-500 transition-all cursor-pointer transform hover:scale-105"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div
-                      className={`w-16 h-16 bg-gradient-to-r ${getCommunityColor(
-                        community
-                      )} rounded-xl flex items-center justify-center`}
-                    >
-                      <span className="text-2xl">{community.avatar}</span>
+            <>
+              <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6 progressive-list">
+                {communities.map((community) => (
+                  <div
+                    key={community.id}
+                    onClick={() => navigate(`/communities/${community.id}`)}
+                    className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-indigo-500 transition-all cursor-pointer transform hover:scale-105"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div
+                        className={`w-16 h-16 bg-gradient-to-r ${getCommunityColor(
+                          community
+                        )} rounded-xl flex items-center justify-center`}
+                      >
+                        <span className="text-2xl">{community.avatar}</span>
+                      </div>
+                      {community.isPublic ? (
+                        <Globe className="w-5 h-5 text-emerald-400" />
+                      ) : (
+                        <Lock className="w-5 h-5 text-yellow-400" />
+                      )}
                     </div>
-                    {community.isPublic ? (
-                      <Globe className="w-5 h-5 text-emerald-400" />
-                    ) : (
-                      <Lock className="w-5 h-5 text-yellow-400" />
-                    )}
-                  </div>
 
-                  <h3 className="text-lg font-bold text-white mb-2">
-                    {community.name}
-                  </h3>
+                    <h3 className="text-lg font-bold text-white mb-2">
+                      {community.name}
+                    </h3>
 
-                  <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                    {community.description}
-                  </p>
+                    <p className="text-gray-400 text-sm mb-4 line-clamp-2">
+                      {community.description}
+                    </p>
 
-                  <div className="flex items-center space-x-2 mb-4">
-                    {getCommunityIcon(community.category)}
-                    <span className="text-sm text-gray-400">
-                      {community.category || "General"}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-700">
-                    <div className="flex items-center space-x-2 text-gray-400 text-sm">
-                      <Users className="w-4 h-4" />
-                      <span>
-                        {community.membersCount.toLocaleString()} thành viên
+                    <div className="flex items-center space-x-2 mb-4">
+                      {getCommunityIcon(community.category)}
+                      <span className="text-sm text-gray-400">
+                        {community.category || "General"}
                       </span>
                     </div>
-                    {community.school && (
-                      <div className="flex items-center space-x-1 text-gray-500 text-xs">
-                        <MapPin className="w-3 h-3" />
-                        <span className="truncate max-w-[100px]">
-                          {community.school}
+
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-700">
+                      <div className="flex items-center space-x-2 text-gray-400 text-sm">
+                        <Users className="w-4 h-4" />
+                        <span>
+                          {community.membersCount.toLocaleString()} thành viên
                         </span>
                       </div>
-                    )}
-                  </div>
+                      {community.school && (
+                        <div className="flex items-center space-x-1 text-gray-500 text-xs">
+                          <MapPin className="w-3 h-3" />
+                          <span className="truncate max-w-[100px]">
+                            {community.school}
+                          </span>
+                        </div>
+                      )}
+                    </div>
 
-                  <button className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm font-medium transition-colors">
-                    Xem chi tiết →
-                  </button>
+                    <button className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-sm font-medium transition-colors">
+                      Xem chi tiết →
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-700">
+                  <div className="text-sm text-gray-400">
+                    Hiển thị {communities.length} / {pagination.totalCount} cộng
+                    đồng
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => {
+                        setPagination((prev) => ({
+                          ...prev,
+                          page: prev.page - 1,
+                        }));
+                        loadCommunities(true);
+                      }}
+                      disabled={!pagination.hasPrevious || loading}
+                      className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Trước
+                    </button>
+                    <span className="text-gray-400 text-sm">
+                      Trang {pagination.page + 1} / {pagination.totalPages}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setPagination((prev) => ({
+                          ...prev,
+                          page: prev.page + 1,
+                        }));
+                        loadCommunities(true);
+                      }}
+                      disabled={!pagination.hasNext || loading}
+                      className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Sau
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </>
       )}
 
       {selectedTab === "popular" && (
         <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredCommunities
+          {communities
             .sort((a, b) => b.membersCount - a.membersCount)
             .slice(0, 6)
             .map((community) => (

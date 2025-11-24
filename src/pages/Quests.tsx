@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Trophy, Star, Clock, CheckCircle, Loader2, Zap } from "lucide-react";
+import { Trophy, Star, Clock, CheckCircle, XCircle, Loader2, Zap, Users, Calendar, MessageSquare } from "lucide-react";
 import QuestService, {
   QuestItem,
   QuestTodayResponse,
 } from "../services/questService";
+import { ContentSkeleton } from "../components/ContentSkeleton";
 
 // Cache key
 const QUESTS_CACHE_KEY = "quests_cache";
@@ -126,10 +127,16 @@ const Quests: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
-          <p className="text-gray-300">Đang tải quests...</p>
+      <div className="min-h-screen bg-gray-900 text-white">
+        <div className="bg-gradient-to-r from-purple-900 to-blue-900 p-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="h-12 bg-gray-700 rounded w-1/3 skeleton-item mb-6"></div>
+            <div className="h-4 bg-gray-700 rounded w-1/4 skeleton-item" style={{ animationDelay: '100ms' }}></div>
+            <ContentSkeleton type="stats" count={3} />
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto p-6">
+          <ContentSkeleton type="grid" count={8} />
         </div>
       </div>
     );
@@ -227,7 +234,7 @@ const Quests: React.FC = () => {
 
       {/* Quests Grid */}
       <div className="max-w-7xl mx-auto p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 progressive-list">
           {questData.Quests.map((quest) => (
             <QuestCard
               key={quest.Code}

@@ -145,7 +145,6 @@ const Profile: React.FC = () => {
                     <Camera className="w-4 h-4 text-white" />
                   </button>
                 </div>
-
                 <h2 className="text-xl font-bold text-white mb-1">
                   {user.fullName || user.userName || "Unknown User"}
                 </h2>
@@ -344,49 +343,49 @@ const Profile: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-400 text-sm font-medium">
-                      Games Played
-                    </p>
-                    <p className="text-2xl font-bold text-white">12</p>
-                  </div>
-                  <div className="bg-blue-600/20 rounded-full p-3">
-                    <Trophy className="w-6 h-6 text-blue-400" />
-                  </div>
-                </div>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm font-medium">
+                  Games Played
+                </p>
+                <p className="text-2xl font-bold text-white">12</p>
               </div>
-
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-400 text-sm font-medium">
-                      Quests Completed
-                    </p>
-                    <p className="text-2xl font-bold text-white">45</p>
-                  </div>
-                  <div className="bg-green-600/20 rounded-full p-3">
-                    <Award className="w-6 h-6 text-green-400" />
-                  </div>
-                </div>
+              <div className="bg-blue-600/20 rounded-full p-3">
+                <Trophy className="w-6 h-6 text-blue-400" />
               </div>
+            </div>
+          </div>
 
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-400 text-sm font-medium">
-                      Events Attended
-                    </p>
-                    <p className="text-2xl font-bold text-white">8</p>
-                  </div>
-                  <div className="bg-purple-600/20 rounded-full p-3">
-                    <Activity className="w-6 h-6 text-purple-400" />
-                  </div>
-                </div>
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm font-medium">
+                  Quests Completed
+                </p>
+                <p className="text-2xl font-bold text-white">45</p>
+              </div>
+              <div className="bg-green-600/20 rounded-full p-3">
+                <Award className="w-6 h-6 text-green-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm font-medium">
+                  Events Attended
+                </p>
+                <p className="text-2xl font-bold text-white">8</p>
+              </div>
+              <div className="bg-purple-600/20 rounded-full p-3">
+                <Activity className="w-6 h-6 text-purple-400" />
               </div>
             </div>
           </div>

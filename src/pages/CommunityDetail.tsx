@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -14,11 +14,15 @@ import {
   Music,
   Code,
   Trophy,
+  Settings,
+  UserPlus,
+  UserX,
 } from "lucide-react";
-import { Community } from "../types/community";
+import { Community, CommunityMemberDto } from "../types/community";
 import { Club } from "../types/club";
 import CommunityService from "../services/communityService";
 import ClubService from "../services/clubService";
+import { useAuth } from "../contexts/AuthContext";
 import toast from "react-hot-toast";
 
 // Cache keys
@@ -29,12 +33,12 @@ const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 export function CommunityDetail() {
   const { communityId } = useParams<{ communityId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [community, setCommunity] = useState<Community | null>(null);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [showCreateClubModal, setShowCreateClubModal] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: "",
@@ -44,13 +48,31 @@ export function CommunityDetail() {
   const [isCreatingClub, setIsCreatingClub] = useState(false);
   const [lastCreateTime, setLastCreateTime] = useState(0);
 
-  // Debounce search
+  // Members state
+  const [members, setMembers] = useState<CommunityMemberDto[]>([]);
+  const [recentMembers, setRecentMembers] = useState<CommunityMemberDto[]>([]);
+  const [showMembers, setShowMembers] = useState(false);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+
+  const canCreateClub = useCallback(() => {
+    const now = Date.now();
+    const timeSinceLastCreate = now - lastCreateTime;
+    const minInterval = 2000; // 2 seconds minimum between requests
+    return timeSinceLastCreate >= minInterval;
+  }, [lastCreateTime]);
+
+  // Update countdown every second
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    if (!canCreateClub()) {
+      const interval = setInterval(() => {
+        // Force re-render to update countdown
+        setLastCreateTime((prev) => prev);
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [lastCreateTime, canCreateClub]);
 
   const loadCommunityAndClubs = useCallback(async () => {
     if (!communityId) return;
@@ -94,9 +116,8 @@ export function CommunityDetail() {
       setCommunity(communityData);
       setClubs(clubsData);
 
-      // Cache results
-      cacheCommunity(cacheKey, communityData);
-      cacheClubs(clubsCacheKey, clubsData);
+      console.log("✅ Loaded community:", communityData);
+      console.log("✅ Loaded clubs:", clubsData);
     } catch (error) {
       console.error("❌ Error loading data:", error);
       // Try cache on error
@@ -116,60 +137,95 @@ export function CommunityDetail() {
     }
   }, [communityId]);
 
-  // Load community and clubs on mount and when communityId changes
+  const loadRecentMembers = useCallback(async () => {
+    if (!communityId) return;
+    try {
+      const recent = await CommunityService.getRecentMembers(communityId, 10);
+      setRecentMembers(recent);
+    } catch (error) {
+      console.error("❌ Error loading recent members:", error);
+    }
+  }, [communityId]);
+
+  // Load community and clubs on mount
   useEffect(() => {
     loadCommunityAndClubs();
-  }, [communityId, loadCommunityAndClubs]);
+    loadRecentMembers();
+  }, [communityId, loadCommunityAndClubs, loadRecentMembers]);
 
   const handleJoinClub = useCallback(async (clubId: string | number) => {
-    // Optimistic update
-    setClubs((prev) =>
-      prev.map((club) =>
-        club.id === clubId
-          ? { ...club, isJoined: true, membersCount: club.membersCount + 1 }
-          : club
-      )
-    );
-
     try {
-      await ClubService.joinClub(clubId.toString());
-      toast.success("Đã tham gia club!");
-    } catch (error) {
-      console.error("❌ Error joining club:", error);
-      // Revert on error
+      await ClubService.joinClub(clubId.toString()); // Convert to string for API
       setClubs((prev) =>
         prev.map((club) =>
           club.id === clubId
-            ? {
-                ...club,
-                isJoined: false,
-                membersCount: Math.max(0, club.membersCount - 1),
-              }
+            ? { ...club, isJoined: true, membersCount: club.membersCount + 1 }
             : club
         )
       );
+      toast.success("Đã tham gia club!");
+    } catch (error) {
+      console.error("❌ Error joining club:", error);
       toast.error("Không thể tham gia club");
     }
   }, []);
 
-  const canCreateClub = useCallback(() => {
-    const now = Date.now();
-    const timeSinceLastCreate = now - lastCreateTime;
-    const minInterval = 2000; // 2 seconds minimum between requests
-    return timeSinceLastCreate >= minInterval;
-  }, [lastCreateTime]);
-
-  // Update countdown every second
-  useEffect(() => {
-    if (!canCreateClub()) {
-      const interval = setInterval(() => {
-        // Force re-render to update countdown
-        setLastCreateTime((prev) => prev);
-      }, 1000);
-
-      return () => clearInterval(interval);
+  const handleJoinCommunity = useCallback(async () => {
+    if (!communityId) return;
+    setIsJoining(true);
+    try {
+      const updatedCommunity = await CommunityService.joinCommunity(
+        communityId
+      );
+      setCommunity(updatedCommunity);
+      toast.success("Đã tham gia cộng đồng!");
+      // Load recent members after joining
+      loadRecentMembers();
+    } catch (error: unknown) {
+      console.error("❌ Error joining community:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Không thể tham gia cộng đồng";
+      toast.error(errorMessage);
+    } finally {
+      setIsJoining(false);
     }
-  }, [lastCreateTime, canCreateClub]);
+  }, [communityId, loadRecentMembers]);
+
+  const loadMembers = useCallback(async () => {
+    if (!communityId) return;
+    setLoadingMembers(true);
+    try {
+      const result = await CommunityService.getCommunityMembers(communityId, {
+        limit: 100,
+      });
+      setMembers(result.members);
+    } catch (error) {
+      console.error("❌ Error loading members:", error);
+      toast.error("Không thể tải danh sách thành viên");
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, [communityId]);
+
+  const handleRemoveMember = useCallback(
+    async (userId: string) => {
+      if (!communityId) return;
+      if (!confirm("Bạn có chắc muốn xóa thành viên này khỏi cộng đồng?"))
+        return;
+
+      try {
+        await CommunityService.removeMember(communityId, userId);
+        setMembers((prev) => prev.filter((m) => m.UserId !== userId));
+        toast.success("Đã xóa thành viên");
+      } catch (error: unknown) {
+        console.error("❌ Error removing member:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "Không thể xóa thành viên";
+        toast.error(errorMessage);
+      }
+    },
+    [communityId]
+  );
 
   const getTimeUntilNextCreate = () => {
     const now = Date.now();
@@ -278,16 +334,13 @@ export function CommunityDetail() {
     }
   };
 
-  // Memoize filtered clubs
-  const filteredClubs = useMemo(() => {
-    const query = debouncedSearchQuery.toLowerCase();
-    return clubs.filter((club) => {
-      const matchesSearch =
-        club.name.toLowerCase().includes(query) ||
-        club.description.toLowerCase().includes(query);
-      return matchesSearch;
-    });
-  }, [clubs, debouncedSearchQuery]);
+  // Filter clubs based on search
+  const filteredClubs = clubs.filter((club) => {
+    const matchesSearch =
+      club.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      club.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
+  });
 
   if (loading) {
     return (
@@ -333,13 +386,15 @@ export function CommunityDetail() {
             <div className="flex items-start justify-between">
               <div className="flex items-start space-x-4">
                 <div className="w-20 h-20 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                  <span className="text-3xl">{community.avatar}</span>
+                  <span className="text-3xl">{community.avatar || "👥"}</span>
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold text-white mb-2">
-                    {community.name}
+                    {community.name || "Unnamed Community"}
                   </h1>
-                  <p className="text-gray-400 mb-3">{community.description}</p>
+                  <p className="text-gray-400 mb-3">
+                    {community.description || "Không có mô tả"}
+                  </p>
                   <div className="flex items-center space-x-4 text-sm">
                     <div className="flex items-center space-x-2 text-gray-400">
                       {getCommunityIcon(community.category)}
@@ -367,9 +422,150 @@ export function CommunityDetail() {
                   </div>
                 </div>
               </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-3 mt-4">
+                {community.role === "Admin" && (
+                  <button
+                    onClick={() =>
+                      navigate(`/communities/${communityId}/settings`)
+                    }
+                    className="flex items-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  >
+                    <Settings className="w-4 h-4" />
+                    <span>Quản lý</span>
+                  </button>
+                )}
+
+                {!community.role && (
+                  <button
+                    onClick={handleJoinCommunity}
+                    disabled={isJoining}
+                    className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {isJoining ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Đang tham gia...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        <span>Tham gia cộng đồng</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {community.role && community.role !== "Admin" && (
+                  <div className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg">
+                    <Users className="w-4 h-4" />
+                    <span>Đã tham gia</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Recent Members Section */}
+        {recentMembers.length > 0 && (
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-white">
+                Thành viên mới tham gia
+              </h2>
+              <button
+                onClick={() => {
+                  setShowMembers(!showMembers);
+                  if (!showMembers && members.length === 0) {
+                    loadMembers();
+                  }
+                }}
+                className="text-indigo-400 hover:text-indigo-300 text-sm"
+              >
+                {showMembers ? "Ẩn" : "Xem tất cả"}
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {recentMembers.map((member) => (
+                <div
+                  key={member.UserId}
+                  className="flex items-center space-x-2 bg-gray-700 rounded-lg px-3 py-2"
+                >
+                  <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                    {member.FullName?.[0] || member.UserName?.[0] || "U"}
+                  </div>
+                  <div>
+                    <div className="text-white text-sm font-medium">
+                      {member.FullName || member.UserName || "Unknown User"}
+                    </div>
+                    {member.Role === "Owner" && (
+                      <div className="text-xs text-yellow-400">Chủ sở hữu</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* All Members Section */}
+        {showMembers && (
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-6">
+            <h2 className="text-lg font-bold text-white mb-4">
+              Tất cả thành viên ({members.length})
+            </h2>
+
+            {loadingMembers ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
+              </div>
+            ) : members.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                Chưa có thành viên nào
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {members.map((member) => (
+                  <div
+                    key={member.UserId}
+                    className="flex items-center justify-between bg-gray-700 rounded-lg px-4 py-3"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
+                        {member.FullName?.[0] || member.UserName?.[0] || "U"}
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">
+                          {member.FullName || member.UserName || "Unknown User"}
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          {member.Role === "Owner" && "👑 Chủ sở hữu"}
+                          {member.Role === "Moderator" && "🛡️ Điều hành viên"}
+                          {member.Role === "Member" && "Thành viên"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {community.role === "Admin" &&
+                      member.Role !== "Owner" &&
+                      member.UserId !== user?.id && (
+                        <button
+                          onClick={() => handleRemoveMember(member.UserId)}
+                          className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                          title="Xóa thành viên"
+                        >
+                          <UserX className="w-5 h-5" />
+                        </button>
+                      )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Search and Actions */}
         <div className="flex flex-col lg:flex-row gap-4 mb-6">
@@ -453,17 +649,17 @@ export function CommunityDetail() {
                 </div>
 
                 <h3 className="text-lg font-bold text-white mb-2">
-                  {club.name}
+                  {club.name || "Unnamed Club"}
                 </h3>
 
                 <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                  {club.description}
+                  {club.description || "Không có mô tả"}
                 </p>
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-700">
                   <div className="flex items-center space-x-2 text-gray-400 text-sm">
                     <Users className="w-4 h-4" />
-                    <span>{club.membersCount} thành viên</span>
+                    <span>{club.membersCount || 0} thành viên</span>
                   </div>
                   <div className="flex space-x-2">
                     <button

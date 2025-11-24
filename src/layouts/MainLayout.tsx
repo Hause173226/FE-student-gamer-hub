@@ -14,7 +14,7 @@ export function MainLayout({ children, currentView, onViewChange }: MainLayoutPr
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-gray-900 text-white overflow-x-hidden">
       {/* Desktop Sidebar */}
       <div className="hidden lg:block">
         <Sidebar 
@@ -42,10 +42,10 @@ export function MainLayout({ children, currentView, onViewChange }: MainLayoutPr
       )}
 
       {/* Main Content */}
-      <div className={`pb-16 lg:pb-0 transition-all duration-300 ${
+      <div className={`pb-16 lg:pb-0 transition-all duration-300 overflow-x-hidden ${
         sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
       }`}>
-        <main className="min-h-screen">
+        <main className="min-h-screen overflow-x-hidden">
           {children}
         </main>
       </div>

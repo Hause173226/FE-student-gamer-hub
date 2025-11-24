@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Search, Filter, Plus, Star, Gamepad2, Loader2 } from "lucide-react";
+import { Search, Filter, Plus, Star, Clock, Trophy, Users, Gamepad2, ChevronRight, Loader2 } from "lucide-react";
 import GameService, { Game, GameSearchParams } from "../services/gameService";
+import { ContentSkeleton } from "../components/ContentSkeleton";
 
 // Cache key
 const GAMES_CACHE_KEY = "games_cache";
@@ -303,10 +304,7 @@ const Games: React.FC = () => {
       {/* Games Grid */}
       <div className="max-w-7xl mx-auto p-6">
         {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-            <span className="ml-2 text-gray-400">Đang tải games...</span>
-          </div>
+          <ContentSkeleton type="grid" count={8} />
         ) : games.length === 0 ? (
           <div className="text-center py-12">
             <Gamepad2 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
@@ -319,7 +317,7 @@ const Games: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 progressive-list">
               {games.map((game) => (
                 <GameCard key={game.id} game={game} onAddGame={handleAddGame} />
               ))}
