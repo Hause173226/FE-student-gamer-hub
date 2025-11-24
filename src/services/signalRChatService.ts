@@ -102,13 +102,11 @@ export class SignalRChatService {
 
     // Listen to "msg" event from server
     this.connection.on("msg", (message: ChatMessageDto) => {
-      console.log("📨 Received message:", message);
       this.notifyMessageListeners(message);
     });
 
     // Listen to "history" event from server
     this.connection.on("history", (response: HistoryResponse) => {
-      console.log("📜 Received history:", response);
       this.notifyHistoryListeners(response);
     });
   }
@@ -149,14 +147,12 @@ export class SignalRChatService {
     }
 
     if (this.connection?.state === HubConnectionState.Connected) {
-      console.log("Already connected");
       return;
     }
 
     try {
       this.notifyConnectionListeners("connecting");
       await this.connection!.start();
-      console.log("✅ SignalR Chat connected to:", API_CONFIG.CHAT_HUB_URL);
       this.notifyConnectionListeners("connected");
     } catch (error: any) {
       console.error("❌ Failed to connect:", error);
@@ -213,7 +209,6 @@ export class SignalRChatService {
     try {
       await this.connection.invoke("JoinChannels", channels);
       channels.forEach((channel) => this.joinedChannels.add(channel));
-      console.log("✅ Joined channels:", channels);
     } catch (error: any) {
       console.error("❌ Failed to join channels:", error);
       throw this.parseError(error);
@@ -236,7 +231,6 @@ export class SignalRChatService {
     const channels = Array.from(this.joinedChannels);
     try {
       await this.connection!.invoke("JoinChannels", channels);
-      console.log("✅ Rejoined channels after reconnection:", channels);
     } catch (error) {
       console.error("❌ Failed to rejoin channels:", error);
     }
@@ -266,7 +260,6 @@ export class SignalRChatService {
 
     try {
       await this.invokeWithRetry("SendDm", toUserId, text);
-      console.log("✅ DM sent to:", toUserId);
     } catch (error: any) {
       console.error("❌ Failed to send DM:", error);
       throw this.parseError(error);
@@ -296,7 +289,6 @@ export class SignalRChatService {
 
     try {
       await this.invokeWithRetry("SendToRoom", roomId, text);
-      console.log("✅ Message sent to room:", roomId);
     } catch (error: any) {
       console.error("❌ Failed to send to room:", error);
       throw this.parseError(error);
@@ -357,6 +349,9 @@ export class SignalRChatService {
 
   onConnectionChange(listener: ConnectionListener): () => void {
     this.connectionListeners.add(listener);
+    // ✅ Immediately notify listener of current connection state
+    const currentStatus = this.getConnectionState();
+    listener(currentStatus);
     return () => this.connectionListeners.delete(listener);
   }
 

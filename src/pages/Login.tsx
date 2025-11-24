@@ -140,28 +140,47 @@ const Login: React.FC = () => {
         // Hide login form
         setShowLoginForm(false);
         
-        // Load dashboard data
-        await loadDashboardData();
-        
-        // Expand box and show dashboard
-        setTimeout(() => {
-          setShowDashboard(true);
-        }, 300);
-        
-        // Navigate after showing dashboard
+        // Small delay to ensure state is updated before navigation
         setTimeout(() => {
           navigate("/");
-        }, 2500);
+        }, 100);
       } else {
         setError("Đăng nhập thất bại: Không nhận được token");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Login error:", err);
-      setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Đăng nhập thất bại. Vui lòng kiểm tra thông tin và thử lại."
-      );
+
+      // Better error messages based on error type
+      let errorMessage =
+        "Đăng nhập thất bại. Vui lòng kiểm tra thông tin và thử lại.";
+
+      if (err && typeof err === "object") {
+        const errorObj = err as Record<string, unknown>;
+
+        if (
+          errorObj.code === "ECONNABORTED" ||
+          (typeof errorObj.message === "string" &&
+            errorObj.message.includes("timeout"))
+        ) {
+          errorMessage =
+            "Kết nối quá lâu. Vui lòng kiểm tra kết nối mạng và thử lại.";
+        } else if (
+          errorObj.message === "Network Error" ||
+          !("response" in errorObj)
+        ) {
+          errorMessage =
+            "Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng hoặc thử lại sau.";
+        } else if ("response" in errorObj) {
+          const response = errorObj.response as { data?: { message?: string } };
+          if (response.data?.message) {
+            errorMessage = response.data.message;
+          }
+        } else if (typeof errorObj.message === "string") {
+          errorMessage = errorObj.message;
+        }
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -179,13 +198,9 @@ const Login: React.FC = () => {
     setError("");
 
     try {
-      console.log("Google credential:", credentialResponse.credential);
-
       const response = await userService.googleLogin({
         idToken: credentialResponse.credential,
       });
-
-      console.log("Google login response:", response);
 
       if (response.accessToken) {
         login(response.accessToken, response.refreshToken);
@@ -193,28 +208,46 @@ const Login: React.FC = () => {
         // Hide login form
         setShowLoginForm(false);
         
-        // Load dashboard data
-        await loadDashboardData();
-        
-        // Expand box and show dashboard
-        setTimeout(() => {
-          setShowDashboard(true);
-        }, 300);
-        
-        // Navigate after showing dashboard
+        // Small delay to ensure state is updated before navigation
         setTimeout(() => {
           navigate("/");
-        }, 2500);
+        }, 100);
       } else {
         setError("Đăng nhập Google thất bại: Không nhận được token");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Google login error:", err);
-      setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Đăng nhập Google thất bại. Vui lòng thử lại."
-      );
+
+      // Better error messages based on error type
+      let errorMessage = "Đăng nhập Google thất bại. Vui lòng thử lại.";
+
+      if (err && typeof err === "object") {
+        const errorObj = err as Record<string, unknown>;
+
+        if (
+          errorObj.code === "ECONNABORTED" ||
+          (typeof errorObj.message === "string" &&
+            errorObj.message.includes("timeout"))
+        ) {
+          errorMessage =
+            "Kết nối quá lâu. Vui lòng kiểm tra kết nối mạng và thử lại.";
+        } else if (
+          errorObj.message === "Network Error" ||
+          !("response" in errorObj)
+        ) {
+          errorMessage =
+            "Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng hoặc thử lại sau.";
+        } else if ("response" in errorObj) {
+          const response = errorObj.response as { data?: { message?: string } };
+          if (response.data?.message) {
+            errorMessage = response.data.message;
+          }
+        } else if (typeof errorObj.message === "string") {
+          errorMessage = errorObj.message;
+        }
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

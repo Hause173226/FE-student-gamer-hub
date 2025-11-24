@@ -89,7 +89,9 @@ export type RegisterResponse = {
 const userService = {
   login(payload: LoginPayload) {
     return axiosInstance
-      .post<LoginResponse>(API_CONFIG.ENDPOINTS.AUTH.LOGIN, payload)
+      .post<LoginResponse>(API_CONFIG.ENDPOINTS.AUTH.LOGIN, payload, {
+        timeout: 30000, // 30 seconds
+      })
       .then((res) => {
         // Map response từ backend (PascalCase) sang camelCase
         return {
@@ -97,6 +99,20 @@ const userService = {
           refreshToken: res.data.AccessToken, // Backend không có refresh token, dùng access token
           expiresAt: res.data.AccessExpiresAtUtc,
         };
+      })
+      .catch((error) => {
+        // Enhanced error logging
+        console.error("🚨 Login API Error:", {
+          message: error.message,
+          code: error.code,
+          response: error.response,
+          request: {
+            url: error.config?.url,
+            method: error.config?.method,
+            baseURL: error.config?.baseURL,
+          },
+        });
+        throw error;
       });
   },
 

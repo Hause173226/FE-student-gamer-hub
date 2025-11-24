@@ -22,4 +22,19 @@ export default defineConfig({
       global: 'globalThis',
     },
   },
+  server: {
+    hmr: {
+      // Tắt ping nếu không cần HMR
+      // Hoặc tăng timeout để giảm spam log
+      overlay: true,
+    },
+    // Tắt auto-reload nếu không cần
+    watch: {
+      usePolling: false,
+    },
+  },
+  // Tắt HMR nếu không cần thiết trong production
+  build: {
+    sourcemap: false,
+  },
 });

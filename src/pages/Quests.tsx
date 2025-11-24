@@ -1,73 +1,129 @@
-import React, { useState, useEffect } from 'react';
-import { Trophy, Star, Clock, CheckCircle, XCircle, Loader2, Zap, Users, Calendar, MessageSquare } from 'lucide-react';
-import QuestService, { QuestItem, QuestTodayResponse } from '../services/questService';
-import { useAuth } from '../contexts/AuthContext';
-import { ContentSkeleton } from '../components/ContentSkeleton';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { Trophy, Star, Clock, CheckCircle, XCircle, Loader2, Zap, Users, Calendar, MessageSquare } from "lucide-react";
+import QuestService, {
+  QuestItem,
+  QuestTodayResponse,
+} from "../services/questService";
+import { ContentSkeleton } from "../components/ContentSkeleton";
+
+// Cache key
+const QUESTS_CACHE_KEY = "quests_cache";
+const QUESTS_CACHE_EXPIRY = 1 * 60 * 1000; // 1 minute (quests change frequently)
+
+interface QuestsCache {
+  data: QuestTodayResponse;
+  timestamp: number;
+}
 
 const Quests: React.FC = () => {
-  const { user } = useAuth();
   const [questData, setQuestData] = useState<QuestTodayResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [completingQuest, setCompletingQuest] = useState<string | null>(null);
 
-  // Load quests on component mount
-  useEffect(() => {
-    loadQuests();
-  }, []);
-
-  const loadQuests = async () => {
+  const loadQuests = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Try cache first
+      const cached = getCachedQuests();
+      if (cached) {
+        setQuestData(cached.data);
+        setLoading(false);
+
+        // Refresh in background
+        QuestService.getTodayQuests()
+          .then((data) => {
+            setQuestData(data);
+            cacheQuests(data);
+          })
+          .catch((err) => {
+            console.warn("Background refresh failed:", err);
+          });
+        return;
+      }
+
       const data = await QuestService.getTodayQuests();
       setQuestData(data);
+      cacheQuests(data);
     } catch (err) {
-      console.error('Error loading quests:', err);
-      setError('Không thể tải danh sách quests');
+      console.error("Error loading quests:", err);
+      // Try cache on error
+      const cached = getCachedQuests();
+      if (cached) {
+        setQuestData(cached.data);
+      } else {
+        setError("Không thể tải danh sách quests");
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleCompleteQuest = async (questCode: string) => {
-    if (completingQuest) return;
+  // Load quests on component mount
+  useEffect(() => {
+    loadQuests();
+  }, [loadQuests]);
 
-    try {
-      setCompletingQuest(questCode);
-      
-      let result;
-      switch (questCode) {
-        case 'CHECK_IN_DAILY':
-          result = await QuestService.completeCheckIn();
-          break;
-        default:
-          throw new Error('Quest không thể hoàn thành thủ công');
-      }
+  const handleCompleteQuest = useCallback(
+    async (questCode: string) => {
+      if (completingQuest) return;
 
-      if (result.success) {
-        // Refresh quest data to show updated status
+      // Optimistic update
+      setQuestData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          Quests: prev.Quests.map((q) =>
+            q.Code === questCode ? { ...q, Done: true } : q
+          ),
+          Points:
+            prev.Points +
+            (prev.Quests.find((q) => q.Code === questCode)?.Reward || 0),
+        };
+      });
+
+      try {
+        setCompletingQuest(questCode);
+
+        let result;
+        switch (questCode) {
+          case "CHECK_IN_DAILY":
+            result = await QuestService.completeCheckIn();
+            break;
+          default:
+            throw new Error("Quest không thể hoàn thành thủ công");
+        }
+
+        if (result.success) {
+          // Refresh quest data
+          await loadQuests();
+        } else {
+          // Revert on failure
+          await loadQuests();
+        }
+      } catch (err) {
+        console.error("Error completing quest:", err);
+        // Revert on error
         await loadQuests();
-      } else {
-        // Show message for idempotent case
-        console.log(result.message);
+      } finally {
+        setCompletingQuest(null);
       }
-    } catch (err) {
-      console.error('Error completing quest:', err);
-    } finally {
-      setCompletingQuest(null);
-    }
-  };
+    },
+    [completingQuest, loadQuests]
+  );
 
-  const getQuestStats = () => {
+  // Memoize quest stats
+  const questStats = useMemo(() => {
     if (!questData) return { completed: 0, total: 0, totalReward: 0 };
-    
-    const completed = questData.Quests.filter(q => q.Done).length;
+
+    const completed = questData.Quests.filter((q) => q.Done).length;
     const total = questData.Quests.length;
     const totalReward = questData.Quests.reduce((sum, q) => sum + q.Reward, 0);
-    
+
     return { completed, total, totalReward };
-  };
+  }, [questData]);
 
   if (loading) {
     return (
@@ -91,9 +147,11 @@ const Quests: React.FC = () => {
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-white mb-2">Lỗi tải dữ liệu</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            Lỗi tải dữ liệu
+          </h2>
           <p className="text-gray-300 mb-4">{error}</p>
-          <button 
+          <button
             onClick={loadQuests}
             className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
           >
@@ -104,7 +162,7 @@ const Quests: React.FC = () => {
     );
   }
 
-  const { completed, total, totalReward } = getQuestStats();
+  const { completed, total, totalReward } = questStats;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -117,7 +175,9 @@ const Quests: React.FC = () => {
                 <Trophy className="w-8 h-8" />
                 Daily Quests
               </h1>
-              <p className="text-gray-300 mt-2">Hoàn thành quests hàng ngày để nhận điểm thưởng</p>
+              <p className="text-gray-300 mt-2">
+                Hoàn thành quests hàng ngày để nhận điểm thưởng
+              </p>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold text-purple-300">
@@ -135,7 +195,9 @@ const Quests: React.FC = () => {
                   <CheckCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{completed}/{total}</div>
+                  <div className="text-2xl font-bold">
+                    {completed}/{total}
+                  </div>
                   <div className="text-sm text-gray-300">Quests hoàn thành</div>
                 </div>
               </div>
@@ -148,7 +210,9 @@ const Quests: React.FC = () => {
                 </div>
                 <div>
                   <div className="text-2xl font-bold">{totalReward}</div>
-                  <div className="text-sm text-gray-300">Tổng điểm có thể nhận</div>
+                  <div className="text-sm text-gray-300">
+                    Tổng điểm có thể nhận
+                  </div>
                 </div>
               </div>
             </div>
@@ -189,20 +253,33 @@ const Quests: React.FC = () => {
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-semibold text-gray-300 mb-2">Cách hoạt động:</h4>
+              <h4 className="font-semibold text-gray-300 mb-2">
+                Cách hoạt động:
+              </h4>
               <ul className="text-sm text-gray-400 space-y-1">
                 <li>• Quests reset vào 00:00 hàng ngày (giờ VN)</li>
                 <li>• Mỗi quest chỉ có thể hoàn thành 1 lần/ngày</li>
                 <li>• Điểm được cộng ngay khi hoàn thành quest</li>
-                <li>• Một số quest tự động hoàn thành khi bạn thực hiện hành động</li>
+                <li>
+                  • Một số quest tự động hoàn thành khi bạn thực hiện hành động
+                </li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-gray-300 mb-2">Loại quests:</h4>
               <ul className="text-sm text-gray-400 space-y-1">
-                <li>• <span className="text-blue-400">Daily</span> - Check-in hàng ngày</li>
-                <li>• <span className="text-green-400">Social</span> - Tương tác với cộng đồng</li>
-                <li>• <span className="text-orange-400">Event</span> - Tham gia sự kiện</li>
+                <li>
+                  • <span className="text-blue-400">Daily</span> - Check-in hàng
+                  ngày
+                </li>
+                <li>
+                  • <span className="text-green-400">Social</span> - Tương tác
+                  với cộng đồng
+                </li>
+                <li>
+                  • <span className="text-orange-400">Event</span> - Tham gia sự
+                  kiện
+                </li>
               </ul>
             </div>
           </div>
@@ -219,13 +296,21 @@ interface QuestCardProps {
   isCompleting: boolean;
 }
 
-const QuestCard: React.FC<QuestCardProps> = ({ quest, onComplete, isCompleting }) => {
-  const canComplete = quest.Code === 'CHECK_IN_DAILY' && !quest.Done;
-  
+const QuestCard: React.FC<QuestCardProps> = ({
+  quest,
+  onComplete,
+  isCompleting,
+}) => {
+  const canComplete = quest.Code === "CHECK_IN_DAILY" && !quest.Done;
+
   return (
     <div className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors">
       {/* Quest Header */}
-      <div className={`h-32 bg-gradient-to-br ${QuestService.getQuestColor(quest.Code)} flex items-center justify-center relative`}>
+      <div
+        className={`h-32 bg-gradient-to-br ${QuestService.getQuestColor(
+          quest.Code
+        )} flex items-center justify-center relative`}
+      >
         <div className="text-6xl">{QuestService.getQuestIcon(quest.Code)}</div>
         {quest.Done && (
           <div className="absolute top-2 right-2">
@@ -238,12 +323,17 @@ const QuestCard: React.FC<QuestCardProps> = ({ quest, onComplete, isCompleting }
       <div className="p-4">
         <div className="flex items-start justify-between mb-2">
           <h3 className="font-semibold text-lg">{quest.Title}</h3>
-          <span className={`text-xs px-2 py-1 rounded ${
-            QuestService.getQuestType(quest.Code) === 'Daily' ? 'bg-blue-600' :
-            QuestService.getQuestType(quest.Code) === 'Social' ? 'bg-green-600' :
-            QuestService.getQuestType(quest.Code) === 'Event' ? 'bg-orange-600' :
-            'bg-gray-600'
-          }`}>
+          <span
+            className={`text-xs px-2 py-1 rounded ${
+              QuestService.getQuestType(quest.Code) === "Daily"
+                ? "bg-blue-600"
+                : QuestService.getQuestType(quest.Code) === "Social"
+                ? "bg-green-600"
+                : QuestService.getQuestType(quest.Code) === "Event"
+                ? "bg-orange-600"
+                : "bg-gray-600"
+            }`}
+          >
             {QuestService.getQuestType(quest.Code)}
           </span>
         </div>
@@ -257,10 +347,12 @@ const QuestCard: React.FC<QuestCardProps> = ({ quest, onComplete, isCompleting }
             <Star className="w-4 h-4 text-yellow-400" />
             <span className="text-sm font-medium">+{quest.Reward} điểm</span>
           </div>
-          <div className={`text-sm font-medium ${
-            quest.Done ? 'text-green-400' : 'text-gray-400'
-          }`}>
-            {quest.Done ? 'Hoàn thành' : 'Chưa hoàn thành'}
+          <div
+            className={`text-sm font-medium ${
+              quest.Done ? "text-green-400" : "text-gray-400"
+            }`}
+          >
+            {quest.Done ? "Hoàn thành" : "Chưa hoàn thành"}
           </div>
         </div>
 
@@ -277,7 +369,7 @@ const QuestCard: React.FC<QuestCardProps> = ({ quest, onComplete, isCompleting }
                 Đang hoàn thành...
               </>
             ) : (
-              'Hoàn thành'
+              "Hoàn thành"
             )}
           </button>
         ) : quest.Done ? (
@@ -294,5 +386,37 @@ const QuestCard: React.FC<QuestCardProps> = ({ quest, onComplete, isCompleting }
   );
 };
 
-export default Quests;
+// Cache helper functions
+function getCachedQuests(): QuestsCache | null {
+  try {
+    const cached = localStorage.getItem(QUESTS_CACHE_KEY);
+    if (!cached) return null;
 
+    const data: QuestsCache = JSON.parse(cached);
+    const now = Date.now();
+
+    if (now - data.timestamp > QUESTS_CACHE_EXPIRY) {
+      localStorage.removeItem(QUESTS_CACHE_KEY);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error reading quests cache:", error);
+    return null;
+  }
+}
+
+function cacheQuests(data: QuestTodayResponse) {
+  try {
+    const cache: QuestsCache = {
+      data,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(QUESTS_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error("Error caching quests:", error);
+  }
+}
+
+export default Quests;

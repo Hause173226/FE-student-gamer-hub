@@ -1,101 +1,205 @@
-import React, { useState, useEffect } from 'react';
-import { Star, Clock, Trophy, Users, Gamepad2, Edit3, Trash2, Loader2, Search, Filter } from 'lucide-react';
-import GameService, { Game, UserGameInfo } from '../services/gameService';
-import { useAuth } from '../contexts/AuthContext';
-import { ContentSkeleton } from '../components/ContentSkeleton';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {
+  Star,
+  Clock,
+  Trophy,
+  Gamepad2,
+  Edit3,
+  Trash2,
+  Loader2,
+  Search,
+  Filter,
+} from "lucide-react";
+import GameService, { Game, UserGameInfo } from "../services/gameService";
+import { ContentSkeleton } from "../components/ContentSkeleton";
+
+// Cache key
+const MY_GAMES_CACHE_KEY = "my_games_cache";
+const MY_GAMES_CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+
+interface MyGamesCache {
+  games: Game[];
+  timestamp: number;
+}
 
 const MyGames: React.FC = () => {
-  const { user } = useAuth();
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterGenre, setFilterGenre] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [filterGenre, setFilterGenre] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedUserGame, setSelectedUserGame] = useState<UserGameInfo | null>(null);
+  const [selectedUserGame, setSelectedUserGame] = useState<UserGameInfo | null>(
+    null
+  );
   const [editForm, setEditForm] = useState({
-    inGameName: '',
+    inGameName: "",
     skillLevel: 1,
-    isFavorite: false
+    isFavorite: false,
   });
   const [updating, setUpdating] = useState(false);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Load my games on component mount
   useEffect(() => {
     loadMyGames();
   }, []);
 
-  const loadMyGames = async () => {
+  const loadMyGames = useCallback(async () => {
     try {
       setLoading(true);
+
+      // Try cache first
+      const cached = getCachedMyGames();
+      if (cached) {
+        setGames(cached.games);
+        setLoading(false);
+
+        // Refresh in background
+        GameService.getMyGames()
+          .then((myGames) => {
+            setGames(myGames);
+            cacheMyGames(myGames);
+          })
+          .catch((err) => {
+            console.warn("Background refresh failed:", err);
+          });
+        return;
+      }
+
       const myGames = await GameService.getMyGames();
       setGames(myGames);
+      cacheMyGames(myGames);
     } catch (error) {
-      console.error('Error loading my games:', error);
+      console.error("Error loading my games:", error);
+      // Try cache on error
+      const cached = getCachedMyGames();
+      if (cached) {
+        setGames(cached.games);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleEditGame = (userGameInfo: UserGameInfo) => {
     setSelectedUserGame(userGameInfo);
     setEditForm({
       inGameName: userGameInfo.inGameName,
       skillLevel: userGameInfo.skillLevel,
-      isFavorite: userGameInfo.isFavorite
+      isFavorite: userGameInfo.isFavorite,
     });
     setShowEditModal(true);
   };
 
-  const handleUpdateGame = async () => {
+  const handleUpdateGame = useCallback(async () => {
     if (!selectedUserGame) return;
+
+    // Optimistic update
+    setGames((prev) =>
+      prev.map((g) =>
+        g.userGameInfo?.id === selectedUserGame.id
+          ? {
+              ...g,
+              userGameInfo: {
+                ...g.userGameInfo,
+                inGameName: editForm.inGameName.trim(),
+                skillLevel: editForm.skillLevel,
+                isFavorite: editForm.isFavorite,
+              },
+            }
+          : g
+      )
+    );
 
     try {
       setUpdating(true);
       await GameService.updateUserGameInfo(selectedUserGame.id, {
         inGameName: editForm.inGameName.trim(),
         skillLevel: editForm.skillLevel,
-        isFavorite: editForm.isFavorite
+        isFavorite: editForm.isFavorite,
       });
-      
-      // Refresh games
-      await loadMyGames();
+
       setShowEditModal(false);
       setSelectedUserGame(null);
+
+      // Refresh in background
+      loadMyGames().catch(console.error);
     } catch (error) {
-      console.error('Error updating game:', error);
+      console.error("Error updating game:", error);
+      // Revert on error
+      loadMyGames();
     } finally {
       setUpdating(false);
     }
-  };
+  }, [selectedUserGame, editForm, loadMyGames]);
 
-  const handleRemoveGame = async (userGameId: string) => {
-    if (!confirm('Bạn có chắc muốn xóa game này khỏi thư viện?')) return;
+  const handleRemoveGame = useCallback(
+    async (userGameId: string) => {
+      if (!confirm("Bạn có chắc muốn xóa game này khỏi thư viện?")) return;
 
-    try {
-      await GameService.removeGameFromLibrary(userGameId);
-      await loadMyGames();
-    } catch (error) {
-      console.error('Error removing game:', error);
-    }
-  };
+      // Optimistic update
+      const gameToRemove = games.find((g) => g.userGameInfo?.id === userGameId);
+      setGames((prev) => prev.filter((g) => g.userGameInfo?.id !== userGameId));
 
-  // Filter games based on search and genre
-  const filteredGames = games.filter(game => {
-    const matchesSearch = game.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         game.userGameInfo?.inGameName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesGenre = !filterGenre || game.genre === filterGenre;
-    return matchesSearch && matchesGenre;
-  });
+      try {
+        await GameService.removeGameFromLibrary(userGameId);
+        // Refresh in background
+        loadMyGames().catch(console.error);
+      } catch (error) {
+        console.error("Error removing game:", error);
+        // Revert on error
+        if (gameToRemove) {
+          setGames((prev) => [...prev, gameToRemove]);
+        }
+        loadMyGames();
+      }
+    },
+    [games, loadMyGames]
+  );
 
-  const genres = [...new Set(games.map(g => g.genre))];
+  // Memoize filtered games
+  const filteredGames = useMemo(() => {
+    const query = debouncedSearchQuery.toLowerCase();
+    return games.filter((game) => {
+      const matchesSearch =
+        game.name.toLowerCase().includes(query) ||
+        game.userGameInfo?.inGameName.toLowerCase().includes(query);
+      const matchesGenre = !filterGenre || game.genre === filterGenre;
+      return matchesSearch && matchesGenre;
+    });
+  }, [games, debouncedSearchQuery, filterGenre]);
 
-  // Calculate stats
-  const totalGames = games.length;
-  const favoriteGames = games.filter(g => g.userGameInfo?.isFavorite).length;
-  const totalPlayTime = games.reduce((sum, g) => sum + (g.userGameInfo?.playTime || 0), 0);
-  const avgSkillLevel = games.length > 0 
-    ? games.reduce((sum, g) => sum + (g.userGameInfo?.skillLevel || 0), 0) / games.length 
-    : 0;
+  // Memoize genres
+  const genres = useMemo(
+    () => [...new Set(games.map((g) => g.genre))],
+    [games]
+  );
+
+  // Memoize stats
+  const stats = useMemo(() => {
+    const totalGames = games.length;
+    const favoriteGames = games.filter(
+      (g) => g.userGameInfo?.isFavorite
+    ).length;
+    const totalPlayTime = games.reduce(
+      (sum, g) => sum + (g.userGameInfo?.playTime || 0),
+      0
+    );
+    const avgSkillLevel =
+      games.length > 0
+        ? games.reduce((sum, g) => sum + (g.userGameInfo?.skillLevel || 0), 0) /
+          games.length
+        : 0;
+    return { totalGames, favoriteGames, totalPlayTime, avgSkillLevel };
+  }, [games]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -108,11 +212,13 @@ const MyGames: React.FC = () => {
                 <Gamepad2 className="w-8 h-8" />
                 My Games
               </h1>
-              <p className="text-gray-300 mt-2">Quản lý thư viện games cá nhân</p>
+              <p className="text-gray-300 mt-2">
+                Quản lý thư viện games cá nhân
+              </p>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold text-green-300">
-                {totalGames}
+                {stats.totalGames}
               </div>
               <div className="text-sm text-gray-300">Games trong thư viện</div>
             </div>
@@ -126,7 +232,7 @@ const MyGames: React.FC = () => {
                   <Gamepad2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{totalGames}</div>
+                  <div className="text-2xl font-bold">{stats.totalGames}</div>
                   <div className="text-sm text-gray-300">Total Games</div>
                 </div>
               </div>
@@ -138,7 +244,9 @@ const MyGames: React.FC = () => {
                   <Star className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{favoriteGames}</div>
+                  <div className="text-2xl font-bold">
+                    {stats.favoriteGames}
+                  </div>
                   <div className="text-sm text-gray-300">Favorites</div>
                 </div>
               </div>
@@ -150,7 +258,9 @@ const MyGames: React.FC = () => {
                   <Clock className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{Math.round(totalPlayTime / 60)}h</div>
+                  <div className="text-2xl font-bold">
+                    {Math.round(stats.totalPlayTime / 60)}h
+                  </div>
                   <div className="text-sm text-gray-300">Play Time</div>
                 </div>
               </div>
@@ -162,7 +272,9 @@ const MyGames: React.FC = () => {
                   <Trophy className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{avgSkillLevel.toFixed(1)}</div>
+                  <div className="text-2xl font-bold">
+                    {stats.avgSkillLevel.toFixed(1)}
+                  </div>
                   <div className="text-sm text-gray-300">Avg Skill</div>
                 </div>
               </div>
@@ -190,8 +302,10 @@ const MyGames: React.FC = () => {
                 className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-3 focus:ring-2 focus:ring-green-500"
               >
                 <option value="">Tất cả thể loại</option>
-                {genres.map(genre => (
-                  <option key={genre} value={genre}>{genre}</option>
+                {genres.map((genre) => (
+                  <option key={genre} value={genre}>
+                    {genre}
+                  </option>
                 ))}
               </select>
             </div>
@@ -207,13 +321,14 @@ const MyGames: React.FC = () => {
           <div className="text-center py-12">
             <Gamepad2 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-400 mb-2">
-              {searchQuery || filterGenre ? 'Không tìm thấy games' : 'Thư viện trống'}
+              {searchQuery || filterGenre
+                ? "Không tìm thấy games"
+                : "Thư viện trống"}
             </h3>
             <p className="text-gray-500">
-              {searchQuery || filterGenre 
-                ? 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm'
-                : 'Hãy thêm games vào thư viện để bắt đầu'
-              }
+              {searchQuery || filterGenre
+                ? "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm"
+                : "Hãy thêm games vào thư viện để bắt đầu"}
             </p>
           </div>
         ) : (
@@ -235,7 +350,7 @@ const MyGames: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
             <h3 className="text-xl font-bold mb-4">Chỉnh sửa thông tin game</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -244,7 +359,12 @@ const MyGames: React.FC = () => {
                 <input
                   type="text"
                   value={editForm.inGameName}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, inGameName: e.target.value }))}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      inGameName: e.target.value,
+                    }))
+                  }
                   placeholder="Nhập tên nhân vật hoặc username"
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500"
                 />
@@ -259,12 +379,19 @@ const MyGames: React.FC = () => {
                   min="1"
                   max="10"
                   value={editForm.skillLevel}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, skillLevel: parseInt(e.target.value) }))}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      skillLevel: parseInt(e.target.value),
+                    }))
+                  }
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-gray-400 mt-1">
                   <span>Casual</span>
-                  <span>{GameService.getSkillLevelText(editForm.skillLevel)}</span>
+                  <span>
+                    {GameService.getSkillLevelText(editForm.skillLevel)}
+                  </span>
                   <span>Competitive</span>
                 </div>
               </div>
@@ -274,10 +401,18 @@ const MyGames: React.FC = () => {
                   type="checkbox"
                   id="isFavorite"
                   checked={editForm.isFavorite}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, isFavorite: e.target.checked }))}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      isFavorite: e.target.checked,
+                    }))
+                  }
                   className="w-4 h-4 text-green-600 bg-gray-700 border-gray-600 rounded focus:ring-green-500"
                 />
-                <label htmlFor="isFavorite" className="ml-2 text-sm text-gray-300">
+                <label
+                  htmlFor="isFavorite"
+                  className="ml-2 text-sm text-gray-300"
+                >
                   Yêu thích
                 </label>
               </div>
@@ -301,7 +436,7 @@ const MyGames: React.FC = () => {
                     Đang cập nhật...
                   </>
                 ) : (
-                  'Cập nhật'
+                  "Cập nhật"
                 )}
               </button>
             </div>
@@ -367,7 +502,7 @@ const MyGameCard: React.FC<MyGameCardProps> = ({ game, onEdit, onRemove }) => {
             <span className="text-sm text-gray-400">In-game:</span>
             <span className="text-sm font-medium">{userGameInfo.inGameName}</span>
           </div>
-          
+
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-400">Skill:</span>
             <span className={`text-sm font-medium ${GameService.getSkillLevelColor(userGameInfo.skillLevel)}`}>
@@ -396,5 +531,38 @@ const MyGameCard: React.FC<MyGameCardProps> = ({ game, onEdit, onRemove }) => {
     </div>
   );
 };
+
+// Cache helper functions
+function getCachedMyGames(): MyGamesCache | null {
+  try {
+    const cached = localStorage.getItem(MY_GAMES_CACHE_KEY);
+    if (!cached) return null;
+
+    const data: MyGamesCache = JSON.parse(cached);
+    const now = Date.now();
+
+    if (now - data.timestamp > MY_GAMES_CACHE_EXPIRY) {
+      localStorage.removeItem(MY_GAMES_CACHE_KEY);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error reading my games cache:", error);
+    return null;
+  }
+}
+
+function cacheMyGames(games: Game[]) {
+  try {
+    const cache: MyGamesCache = {
+      games,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(MY_GAMES_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error("Error caching my games:", error);
+  }
+}
 
 export default MyGames;

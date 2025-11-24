@@ -104,11 +104,9 @@ export class MembershipService {
    */
   static async getMembershipTree(): Promise<SidebarClub[]> {
     try {
-      console.log("🔄 Fetching membership tree...");
       const response = await axiosInstance.get<MembershipTreeResponse>(
         "/api/Memberships/tree"
       );
-      console.log("✅ Membership tree fetched:", response.data);
 
       // Transform backend data to frontend format
       return response.data.clubs.map((club: ClubInfo, index: number) =>

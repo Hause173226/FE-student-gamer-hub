@@ -33,7 +33,6 @@ export function useSignalRChannel(channel: string, currentUserId: string) {
     isInitialized.current = true;
     let isMounted = true;
 
-    console.log("🚀 Init SignalR for channel:", channel);
     setMessages([]);
     setIsLoading(true);
 
@@ -59,13 +58,6 @@ export function useSignalRChannel(channel: string, currentUserId: string) {
     // ✅ 3. QUAN TRỌNG: Listen for HISTORY messages
     const unsubHistory = signalRChatService.onHistory(
       (response: HistoryResponse) => {
-        console.log("📜 History received:", {
-          channel: response.channel,
-          itemsCount: response.items?.length || 0,
-          nextAfterId: response.nextAfterId,
-          items: response.items,
-        });
-
         if (!isMounted) return;
         setIsLoading(false);
 
@@ -75,7 +67,6 @@ export function useSignalRChannel(channel: string, currentUserId: string) {
           !Array.isArray(response.items) ||
           response.items.length === 0
         ) {
-          console.log("📭 No history messages");
           return;
         }
 
@@ -85,7 +76,6 @@ export function useSignalRChannel(channel: string, currentUserId: string) {
           : response.items;
 
         if (channelMessages.length === 0) {
-          console.log("⚠️ No messages for this channel");
           return;
         }
 
@@ -95,9 +85,6 @@ export function useSignalRChannel(channel: string, currentUserId: string) {
         );
 
         setMessages(sorted as ChatMessage[]);
-        console.log(
-          `✅ Loaded ${sorted.length} history messages for channel: ${channel}`
-        );
       }
     );
 

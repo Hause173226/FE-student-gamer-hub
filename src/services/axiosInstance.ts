@@ -10,6 +10,7 @@ const STUDENT_GAMER_HUB_URL = API_CONFIG.STUDENT_GAMER_HUB_URL;
 const axiosInstance = axios.create({
   baseURL: STUDENT_GAMER_HUB_URL,
   withCredentials: false,
+  timeout: 30000, // 30 seconds timeout
   headers: {
     "Content-Type": "application/json",
   },
@@ -19,6 +20,7 @@ const axiosInstance = axios.create({
 const authAxiosInstance = axios.create({
   baseURL: STUDENT_GAMER_HUB_URL,
   withCredentials: false,
+  timeout: 30000, // 30 seconds timeout
   headers: {
     "Content-Type": "application/json",
   },
@@ -35,7 +37,10 @@ const addTokenInterceptor = (instance: typeof axiosInstance) => {
       }
       return config;
     },
-    (error) => Promise.reject(error)
+    (error) => {
+      console.error('❌ Request interceptor error:', error);
+      return Promise.reject(error);
+    }
   );
 };
 
@@ -57,9 +62,37 @@ const processQueue = (error: any | null, token: string | null = null) => {
   failedQueue = [];
 };
 
+// Add response interceptor for better error handling
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    return response;
+  },
   async (error) => {
+    // Enhanced error logging
+    if (error.code === 'ECONNABORTED') {
+      console.error('⏱️ Request timeout:', error.config?.url);
+    } else if (error.message === 'Network Error') {
+      console.error('🌐 Network Error - Server might be down or CORS issue:', {
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+        fullURL: `${error.config?.baseURL}${error.config?.url}`,
+      });
+    } else if (!error.response) {
+      console.error('❌ No response received:', {
+        message: error.message,
+        code: error.code,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+      });
+    } else {
+      console.error('❌ Response error:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        url: error.config?.url,
+        data: error.response?.data,
+      });
+    }
+
     const originalRequest: any = error?.config;
     if (!originalRequest) return Promise.reject(error);
 
