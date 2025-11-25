@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Users, Clock, Trophy, Gamepad2, GraduationCap, Coffee, Globe, Building2, Search, Filter, ChevronRight, CheckCircle, XCircle, AlertCircle, Plus, Edit, Trash2, Play, X as XIcon } from 'lucide-react';
 import { EventService, Event, EventFilters } from '../services/eventService';
 import { MembershipService } from '../services/membershipService';
+import { ClubService } from '../services/clubService';
+import { Club } from '../types/club';
 import { CreateEventModal } from '../components/CreateEventModal';
 import { EditEventModal } from '../components/EditEventModal';
 import { EventDetailModal } from '../components/EventDetailModal';
@@ -132,6 +134,8 @@ const Events: React.FC = () => {
   const loadMyEvents = async () => {
     try {
       const response = await EventService.getMyEvents();
+      
+      // Backend đã trả về RegisteredCount trong response, không cần gọi API riêng
       setMyEvents(response.items);
     } catch (error: any) {
       console.error('Error loading my events:', error);
@@ -189,6 +193,8 @@ const Events: React.FC = () => {
       };
       
       const response = await EventService.getAllEvents(eventFilters);
+      
+      // Backend đã trả về RegisteredCount trong response, không cần gọi API riêng
       setEvents(response.items);
     } catch (err: any) {
       setError(err.message || 'Không thể tải danh sách sự kiện');
@@ -200,6 +206,35 @@ const Events: React.FC = () => {
 
   const handleRegisterEvent = async (eventId: string) => {
     try {
+      // Tìm event trong danh sách
+      const event = events.find(e => e.id === eventId);
+      
+      // Nếu event là Online và có location (club name), kiểm tra club
+      if (event?.mode === 'Online' && event?.location) {
+        try {
+          // Tìm club theo tên
+          const clubs = await ClubService.searchClubs(event.location);
+          const club = clubs.find(
+            c => c.name.toLowerCase().trim() === event.location?.toLowerCase().trim()
+          );
+          
+          if (club && !club.isJoined) {
+            // User chưa tham gia club, hiển thị thông báo và mở modal detail
+            toast.error(`Bạn cần tham gia club "${club.name}" để tham gia sự kiện`, {
+              duration: 5000,
+            });
+            // Mở modal detail để user có thể tham gia club
+            setSelectedEvent(event);
+            setShowDetailModal(true);
+            return;
+          }
+        } catch (clubError: any) {
+          console.error('Error checking club:', clubError);
+          // Nếu không tìm thấy club, vẫn cho phép đăng ký (có thể là URL)
+        }
+      }
+      
+      // Đăng ký event
       await EventService.registerEvent(eventId);
       toast.success('Đăng ký sự kiện thành công!');
       
@@ -221,11 +256,11 @@ const Events: React.FC = () => {
       await EventService.unregisterEvent(eventId);
       toast.success('Hủy đăng ký thành công!');
       
-      // Update local state
+      // Update local state - giảm RegisteredCount
       setEvents(prevEvents => 
         prevEvents.map(event => 
           event.id === eventId 
-            ? { ...event, isRegistered: false, currentParticipants: event.currentParticipants - 1 }
+            ? { ...event, isRegistered: false, currentParticipants: Math.max((event.currentParticipants || 0) - 1, 0), registeredCount: Math.max((event.registeredCount || event.currentParticipants || 0) - 1, 0) }
             : event
         )
       );
@@ -286,7 +321,7 @@ const Events: React.FC = () => {
   };
 
   if (loading) {
-    return (
+  return (
       <div className="min-h-screen bg-gray-900 p-6">
         <div className="max-w-7xl mx-auto">
           <div className="animate-pulse">
@@ -299,8 +334,8 @@ const Events: React.FC = () => {
                   <div className="h-3 bg-gray-700 rounded w-2/3"></div>
                 </div>
               ))}
-            </div>
-          </div>
+      </div>
+        </div>
         </div>
       </div>
     );
@@ -314,14 +349,14 @@ const Events: React.FC = () => {
             <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-white mb-2">Lỗi tải sự kiện</h2>
             <p className="text-gray-400 mb-6">{error}</p>
-            <button
+          <button
               onClick={loadEvents}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
             >
               Thử lại
-            </button>
-          </div>
-        </div>
+                    </button>
+                  </div>
+                </div>
       </div>
     );
   }
@@ -331,7 +366,7 @@ const Events: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
-          <div>
+                  <div>
             <h1 className="text-3xl font-bold text-white mb-2">Sự Kiện Gaming</h1>
             <p className="text-gray-400">Khám phá và tham gia các sự kiện gaming thú vị</p>
           </div>
@@ -365,7 +400,7 @@ const Events: React.FC = () => {
                   >
                     Đăng ký ngay
                   </button>
-                </div>
+                      </div>
               ) : membershipInfo.isExpired ? (
                 <div className="text-sm text-gray-400">
                   <p>Gói membership của bạn đã hết hạn</p>
@@ -377,17 +412,17 @@ const Events: React.FC = () => {
                   >
                     Gia hạn ngay
                   </button>
-                </div>
+                      </div>
               ) : !membershipInfo.isUnlimited && membershipInfo.remainingQuota !== null && membershipInfo.remainingQuota <= 0 ? (
                 <div className="text-sm text-gray-400">
                   <p>Bạn đã hết quota tạo event trong tháng này</p>
                   <p className="text-xs mt-1">Gói: {membershipInfo.planName}</p>
-                </div>
+                      </div>
               ) : null}
-            </div>
+                      </div>
             )}
-          </div>
-        </div>
+                      </div>
+                    </div>
 
         {/* Search and Filters */}
         <div className="bg-gray-800 rounded-lg p-6 mb-8">
@@ -404,7 +439,7 @@ const Events: React.FC = () => {
                   className="w-full bg-gray-700 text-white pl-10 pr-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
                 />
               </div>
-            </div>
+                    </div>
 
             {/* Filter Toggle */}
             <button
@@ -413,8 +448,8 @@ const Events: React.FC = () => {
             >
               <Filter className="w-5 h-5" />
               Bộ lọc
-            </button>
-          </div>
+                      </button>
+                    </div>
 
           {/* Filters Panel */}
           {showFilters && (
@@ -436,7 +471,7 @@ const Events: React.FC = () => {
                       </option>
                     ))}
                   </select>
-                </div>
+                  </div>
 
                 {/* Mode Filter */}
                 <div>
@@ -454,7 +489,7 @@ const Events: React.FC = () => {
                       </option>
                     ))}
                   </select>
-                </div>
+                    </div>
 
                 {/* Clear Filters */}
                 <div className="flex items-end">
@@ -464,11 +499,11 @@ const Events: React.FC = () => {
                   >
                     Xóa bộ lọc
                   </button>
+                  </div>
                 </div>
               </div>
-            </div>
           )}
-        </div>
+            </div>
 
         {/* Events Grid */}
         {showMyEvents ? (
@@ -483,7 +518,7 @@ const Events: React.FC = () => {
               {myEvents.map((event) => (
                 <div key={event.id} className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-colors flex flex-col h-full">
                   <div className="p-6 flex flex-col flex-1">
-                    <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
                         {getEventTypeIcon(event.eventType)}
                         <div>
@@ -498,10 +533,10 @@ const Events: React.FC = () => {
                       <div className="flex items-center gap-2">
                         {getEventStatusIcon(event.status)}
                         <span className={`text-xs font-medium ${EventService.getEventStatusColor(event.status)}`}>
-                          {event.status}
-                        </span>
-                      </div>
-                    </div>
+                    {event.status}
+                  </span>
+                  </div>
+                </div>
 
                     <p className="text-gray-300 text-sm mb-4 line-clamp-3">
                       {event.description}
@@ -511,13 +546,13 @@ const Events: React.FC = () => {
                       <div className="flex items-center gap-2 text-sm text-gray-400">
                         <Clock className="w-4 h-4" />
                         <span>{EventService.formatEventDate(event.startDate)}</span>
-                      </div>
+                  </div>
                       
                       {event.location && (
                         <div className="flex items-center gap-2 text-sm text-gray-400">
                           <MapPin className="w-4 h-4" />
-                          <span>{event.location}</span>
-                        </div>
+                    <span>{event.location}</span>
+                  </div>
                       )}
                       
                       <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -526,8 +561,8 @@ const Events: React.FC = () => {
                           {event.currentParticipants}
                           {event.maxParticipants && ` / ${event.maxParticipants}`} người tham gia
                         </span>
-                      </div>
-                    </div>
+                  </div>
+                </div>
 
                     {/* Action Buttons for Organizer */}
                     <div className="flex gap-2 flex-wrap mt-auto">
@@ -550,7 +585,7 @@ const Events: React.FC = () => {
                         >
                           <Play className="w-4 h-4" />
                           Mở sự kiện
-                        </button>
+                  </button>
                       )}
                       {event.status !== 'Cancelled' && event.status !== 'Completed' && (
                         <button
@@ -559,13 +594,13 @@ const Events: React.FC = () => {
                         >
                           <XIcon className="w-4 h-4" />
                           Hủy sự kiện
-                        </button>
+                  </button>
                       )}
                     </div>
-                  </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
+          </div>
           )
         ) : events.length === 0 ? (
           <div className="text-center py-12">
@@ -609,17 +644,17 @@ const Events: React.FC = () => {
                       <div className="flex items-center gap-2 text-sm text-gray-400">
                         <MapPin className="w-4 h-4 flex-shrink-0" />
                         <span className="line-clamp-1">{event.location}</span>
-                      </div>
-                    )}
-                    
+        </div>
+      )}
+
                     <div className="flex items-center gap-2 text-sm text-gray-400">
                       <Users className="w-4 h-4" />
                       <span>
                         {event.currentParticipants}
                         {event.maxParticipants && ` / ${event.maxParticipants}`} người tham gia
                       </span>
-                    </div>
                   </div>
+                </div>
 
                   {/* Community */}
                   {event.communityName && (
@@ -697,12 +732,12 @@ const Events: React.FC = () => {
                         <ChevronRight className="w-4 h-4" />
                       </button>
                     )}
-                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
+      )}
 
         {/* Create Event Modal */}
         <CreateEventModal
@@ -742,9 +777,9 @@ const Events: React.FC = () => {
               loadMyEvents();
             }
           }}
-        />
-      </div>
-    </div>
+                  />
+                </div>
+              </div>
   );
 };
 

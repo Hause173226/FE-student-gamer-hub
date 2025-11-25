@@ -49,7 +49,9 @@ export class ClubService {
   static async getClubById(id: string): Promise<Club> {
     try {
       console.log(`🔄 Fetching club ${id}...`);
-      const response = await axiosInstance.get<ClubDTO>(API_CONFIG.ENDPOINTS.CLUBS.BY_ID(id));
+      // Sử dụng authAxiosInstance để lấy trạng thái IsMember
+      const { authAxiosInstance } = await import('./axiosInstance');
+      const response = await authAxiosInstance.get<ClubDTO>(API_CONFIG.ENDPOINTS.CLUBS.BY_ID(id));
       console.log('✅ Club fetched:', response.data);
       
       return this.transformClub(response.data, parseInt(id));
@@ -106,6 +108,45 @@ export class ClubService {
     } catch (error) {
       console.error(`❌ Error deleting club ${id}:`, error);
       throw new Error('Không thể xóa club');
+    }
+  }
+
+  // Search all clubs (for event creation)
+  static async searchClubs(searchQuery?: string): Promise<Club[]> {
+    try {
+      console.log('🔄 Searching clubs...', searchQuery);
+      const params = new URLSearchParams();
+      if (searchQuery) params.append('name', searchQuery);
+      params.append('size', '50'); // Get more results
+      
+      // Use authAxiosInstance to get joined status
+      const { authAxiosInstance } = await import('./axiosInstance');
+      const response = await authAxiosInstance.get<any>(
+        `${API_CONFIG.ENDPOINTS.CLUBS.BASE}?${params.toString()}`
+      );
+      console.log('✅ Clubs searched:', response.data);
+      
+      // Handle both PagedResult and ClubListResponse formats
+      // PagedResult has Items, ClubListResponse also has Items
+      const items = response.data.Items || response.data.items || [];
+      
+      return items.map((club: any, index: number) => {
+        const clubDTO: ClubDTO = {
+          Id: club.Id || club.id || '',
+          CommunityId: club.CommunityId || club.communityId || '',
+          Name: club.Name || club.name || '',
+          Description: club.Description || club.description,
+          IsPublic: club.IsPublic !== undefined ? club.IsPublic : (club.isPublic !== undefined ? club.isPublic : true),
+          MembersCount: club.MembersCount || club.membersCount || 0,
+          // ClubBriefDto uses IsJoined, ClubDetailDto uses IsMember
+          IsMember: club.IsJoined !== undefined ? club.IsJoined : (club.isJoined !== undefined ? club.isJoined : (club.IsMember !== undefined ? club.IsMember : (club.isMember !== undefined ? club.isMember : false))),
+          IsOwner: club.IsOwner !== undefined ? club.IsOwner : (club.isOwner !== undefined ? club.isOwner : false),
+        };
+        return this.transformClub(clubDTO, index);
+      });
+    } catch (error) {
+      console.error('❌ Error searching clubs:', error);
+      throw new Error('Không thể tìm kiếm clubs');
     }
   }
 

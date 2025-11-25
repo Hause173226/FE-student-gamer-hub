@@ -11,15 +11,19 @@ export interface Event {
   endDate: string;
   maxParticipants?: number;
   currentParticipants: number;
+  registeredCount?: number; // Tổng số đăng ký (Pending + Confirmed + CheckedIn)
+  confirmedCount?: number; // Số đã xác nhận (Confirmed + CheckedIn)
   isRegistered: boolean;
   isOrganizer?: boolean; // Người dùng có phải là người tạo event không
   communityId?: string;
   communityName?: string;
   organizerId: string;
-  organizerName: string;
+  organizerName?: string; // Tên người tổ chức
   status: 'Open' | 'Closed' | 'Completed' | 'Cancelled' | 'Draft';
+  displayStatus?: string; // Trạng thái hiển thị từ backend
   registrationDeadline?: string;
   location?: string;
+  priceCents?: number; // Giá tham gia (cents)
   requirements?: string[];
   prizes?: string[];
   rules?: string[];
@@ -97,21 +101,48 @@ export class EventService {
   }
 
   /**
-   * Lấy event theo ID
+   * Lấy event theo ID (chi tiết đầy đủ)
    */
   static async getEventById(eventId: string): Promise<Event> {
     try {
-      console.log('🔄 Fetching event by ID:', eventId);
+      console.log('🔄 Fetching event detail by ID:', eventId);
       
       const response = await authAxiosInstance.get(
         `${API_CONFIG.ENDPOINTS.EVENTS.BASE}/${eventId}`
       );
       
-      console.log('✅ Event fetched:', response.data);
+      console.log('✅ Event detail fetched:', response.data);
       return this.transformEvent(response.data);
     } catch (error: any) {
-      console.error('❌ Error fetching event:', error);
-      throw new Error('Không thể tải thông tin sự kiện');
+      console.error('❌ Error fetching event detail:', error);
+      
+      if (error.response?.status === 404) {
+        throw new Error('Không tìm thấy sự kiện');
+      } else if (error.response?.status === 401) {
+        throw new Error('Bạn cần đăng nhập để xem chi tiết sự kiện');
+      } else {
+        throw new Error('Không thể tải thông tin sự kiện');
+      }
+    }
+  }
+
+  /**
+   * Lấy số lượng người tham gia event
+   */
+  static async getEventParticipantCount(eventId: string): Promise<number> {
+    try {
+      // Gọi API registrations với pageSize=1 để lấy Total count
+      const response = await authAxiosInstance.get(
+        `/api/events/${eventId}/registrations?pageSize=1&page=1`
+      );
+      
+      // PagedResponse có Total field
+      const total = response.data?.Total || response.data?.total || 0;
+      return total;
+    } catch (error: any) {
+      console.error('❌ Error getting participant count:', error);
+      // Nếu lỗi (ví dụ không có quyền), trả về 0
+      return 0;
     }
   }
 
@@ -136,13 +167,21 @@ export class EventService {
       };
     } catch (error: any) {
       console.error('❌ Error registering for event:', error);
+      console.error('Error response:', error.response?.data);
       
       if (error.response?.status === 409) {
         throw new Error('Bạn đã đăng ký sự kiện này rồi');
       } else if (error.response?.status === 400) {
-        throw new Error('Sự kiện đã đóng đăng ký hoặc đã đầy');
+        const errorMessage = error.response?.data?.message || error.response?.data?.title || 'Sự kiện đã đóng đăng ký hoặc đã đầy';
+        throw new Error(errorMessage);
+      } else if (error.response?.status === 403) {
+        const errorMessage = error.response?.data?.message || error.response?.data?.title || 'Bạn không có quyền đăng ký sự kiện này';
+        throw new Error(errorMessage);
+      } else if (error.response?.status === 404) {
+        throw new Error('Không tìm thấy sự kiện');
       } else {
-        throw new Error('Không thể đăng ký sự kiện');
+        const errorMessage = error.response?.data?.message || error.response?.data?.title || error.message || 'Không thể đăng ký sự kiện';
+        throw new Error(errorMessage);
       }
     }
   }
@@ -468,7 +507,9 @@ export class EventService {
       startDate: event.StartsAt || event.startsAt || event.StartDate || event.startDate || '',
       endDate: event.EndsAt || event.endsAt || event.EndDate || event.endDate || '',
       maxParticipants: event.Capacity || event.capacity,
-      currentParticipants: 0, // Will be calculated from registrations if needed
+      currentParticipants: event.RegisteredCount || event.registeredCount || 0, // Số người đã đăng ký (RegisteredCount)
+      registeredCount: event.RegisteredCount || event.registeredCount, // Tổng số đăng ký
+      confirmedCount: event.ConfirmedCount || event.confirmedCount, // Số đã xác nhận
       isRegistered: hasRegistration || (event.MyRegistrationStatus && event.MyRegistrationStatus !== 'Canceled'),
       isOrganizer: event.IsOrganizer || event.isOrganizer || false,
       communityId: event.CommunityId || event.communityId,
