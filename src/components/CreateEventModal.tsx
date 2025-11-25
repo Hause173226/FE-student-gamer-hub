@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, MapPin, Users, DollarSign, Globe, Building2 } from 'lucide-react';
+import { X, Calendar, MapPin, Users, DollarSign, Globe, Building2, Search, CheckCircle } from 'lucide-react';
 import { EventService } from '../services/eventService';
+import { ClubService } from '../services/clubService';
+import { Club } from '../types/club';
 import { toast } from 'react-hot-toast';
 
 interface CreateEventModalProps {
@@ -11,6 +13,10 @@ interface CreateEventModalProps {
 
 export function CreateEventModal({ isOpen, onClose, onSuccess }: CreateEventModalProps) {
   const [loading, setLoading] = useState(false);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+  const [loadingClubs, setLoadingClubs] = useState(false);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -33,8 +39,55 @@ export function CreateEventModal({ isOpen, onClose, onSuccess }: CreateEventModa
         ...prev,
         startsAt: tomorrow.toISOString().slice(0, 16),
       }));
+      
+      // Load clubs if mode is Online
+      if (formData.mode === 'Online') {
+        loadClubs();
+      }
     }
   }, [isOpen]);
+
+  // Load clubs when mode changes to Online
+  useEffect(() => {
+    if (isOpen && formData.mode === 'Online') {
+      loadClubs();
+    } else {
+      setClubs([]);
+      setSelectedClub(null);
+      setSearchQuery('');
+    }
+  }, [formData.mode, isOpen]);
+
+  // Search clubs with debounce
+  useEffect(() => {
+    if (formData.mode === 'Online' && isOpen) {
+      const timer = setTimeout(() => {
+        loadClubs(searchQuery);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery, formData.mode, isOpen]);
+
+  const loadClubs = async (query?: string) => {
+    try {
+      setLoadingClubs(true);
+      const results = await ClubService.searchClubs(query);
+      setClubs(results);
+    } catch (error: any) {
+      console.error('Error loading clubs:', error);
+      toast.error('Không thể tải danh sách clubs');
+    } finally {
+      setLoadingClubs(false);
+    }
+  };
+
+  const handleSelectClub = (club: Club) => {
+    setSelectedClub(club);
+    setFormData(prev => ({
+      ...prev,
+      location: club.name, // Set club name as location
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +99,12 @@ export function CreateEventModal({ isOpen, onClose, onSuccess }: CreateEventModa
 
     if (!formData.startsAt) {
       toast.error('Vui lòng chọn thời gian bắt đầu');
+      return;
+    }
+
+    // Nếu là Online event, bắt buộc phải chọn club
+    if (formData.mode === 'Online' && !selectedClub) {
+      toast.error('Vui lòng chọn club để tổ chức sự kiện');
       return;
     }
 
@@ -94,6 +153,9 @@ export function CreateEventModal({ isOpen, onClose, onSuccess }: CreateEventModa
       priceCents: '',
       capacity: '',
     });
+    setClubs([]);
+    setSelectedClub(null);
+    setSearchQuery('');
     onClose();
   };
 
@@ -176,22 +238,117 @@ export function CreateEventModal({ isOpen, onClose, onSuccess }: CreateEventModa
             </div>
           </div>
 
-          {/* Location */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              {formData.mode === 'Offline' ? 'Địa điểm' : 'Link/URL (tùy chọn)'}
-            </label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="w-full bg-gray-700 text-white pl-10 pr-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
-                placeholder={formData.mode === 'Offline' ? 'Nhập địa điểm tổ chức' : 'Nhập link/URL sự kiện (nếu có)'}
-              />
+          {/* Location / Club Selection */}
+          {formData.mode === 'Offline' ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Địa điểm
+              </label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  className="w-full bg-gray-700 text-white pl-10 pr-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  placeholder="Nhập địa điểm tổ chức"
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Chọn Club <span className="text-red-500">*</span>
+              </label>
+              
+              {/* Search Clubs */}
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-gray-700 text-white pl-10 pr-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  placeholder="Tìm kiếm club..."
+                />
+              </div>
+
+              {/* Selected Club */}
+              {selectedClub && (
+                <div className="mb-3 p-3 bg-blue-600/20 border border-blue-500 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium">{selectedClub.name}</p>
+                      {selectedClub.description && (
+                        <p className="text-gray-400 text-sm mt-1 line-clamp-1">{selectedClub.description}</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedClub(null);
+                        setFormData(prev => ({ ...prev, location: '' }));
+                      }}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Clubs List */}
+              {!selectedClub && (
+                <div className="max-h-60 overflow-y-auto bg-gray-800 rounded-lg border border-gray-700">
+                  {loadingClubs ? (
+                    <div className="p-4 text-center text-gray-400">
+                      <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-2" />
+                      Đang tải...
+                    </div>
+                  ) : clubs.length === 0 ? (
+                    <div className="p-4 text-center text-gray-400">
+                      {searchQuery ? 'Không tìm thấy club nào' : 'Không có club nào'}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-700">
+                      {clubs.map((club) => (
+                        <div
+                          key={club.id}
+                          className="p-3 hover:bg-gray-700/50 transition-colors cursor-pointer"
+                          onClick={() => handleSelectClub(club)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-white font-medium">{club.name}</p>
+                              {club.description && (
+                                <p className="text-gray-400 text-xs mt-1 line-clamp-1">{club.description}</p>
+                              )}
+                              <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                                <span>{club.membersCount || 0} thành viên</span>
+                                {club.isPublic ? (
+                                  <span className="text-green-400">Công khai</span>
+                                ) : (
+                                  <span className="text-orange-400">Riêng tư</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              {club.isJoined && (
+                                <div className="flex items-center gap-2 text-green-400 text-sm">
+                                  <CheckCircle className="w-5 h-5" />
+                                  <span>Đã tham gia</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Date & Time */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
