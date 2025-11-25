@@ -11,19 +11,19 @@ export interface Event {
   endDate: string;
   maxParticipants?: number;
   currentParticipants: number;
-  registeredCount?: number; // Tổng số đăng ký (Pending + Confirmed + CheckedIn)
-  confirmedCount?: number; // Số đã xác nhận (Confirmed + CheckedIn)
+  registeredCount?: number;
+  confirmedCount?: number;
   isRegistered: boolean;
-  isOrganizer?: boolean; // Người dùng có phải là người tạo event không
+  isOrganizer?: boolean;
   communityId?: string;
   communityName?: string;
   organizerId: string;
-  organizerName?: string; // Tên người tổ chức
+  organizerName?: string;
   status: 'Open' | 'Closed' | 'Completed' | 'Cancelled' | 'Draft';
-  displayStatus?: string; // Trạng thái hiển thị từ backend
+  displayStatus?: string;
   registrationDeadline?: string;
   location?: string;
-  priceCents?: number; // Giá tham gia (cents)
+  priceCents?: number;
   requirements?: string[];
   prizes?: string[];
   rules?: string[];
@@ -60,9 +60,6 @@ export interface EventListResponse {
 }
 
 export class EventService {
-  /**
-   * Lấy danh sách tất cả events
-   */
   static async getAllEvents(filters?: EventFilters): Promise<EventListResponse> {
     try {
       console.log('🔄 Fetching all events...');
@@ -79,7 +76,6 @@ export class EventService {
       
       console.log('✅ Events fetched:', response.data);
       
-      // Transform API response to our format
       const apiData = response.data;
       const items = apiData.Items || apiData.items || [];
       
@@ -100,9 +96,6 @@ export class EventService {
     }
   }
 
-  /**
-   * Lấy event theo ID (chi tiết đầy đủ)
-   */
   static async getEventById(eventId: string): Promise<Event> {
     try {
       console.log('🔄 Fetching event detail by ID:', eventId);
@@ -126,29 +119,20 @@ export class EventService {
     }
   }
 
-  /**
-   * Lấy số lượng người tham gia event
-   */
   static async getEventParticipantCount(eventId: string): Promise<number> {
     try {
-      // Gọi API registrations với pageSize=1 để lấy Total count
       const response = await authAxiosInstance.get(
         `/api/events/${eventId}/registrations?pageSize=1&page=1`
       );
       
-      // PagedResponse có Total field
       const total = response.data?.Total || response.data?.total || 0;
       return total;
     } catch (error: any) {
       console.error('❌ Error getting participant count:', error);
-      // Nếu lỗi (ví dụ không có quyền), trả về 0
       return 0;
     }
   }
 
-  /**
-   * Đăng ký tham gia event
-   */
   static async registerEvent(eventId: string): Promise<EventRegistration> {
     try {
       console.log('🔄 Registering for event:', eventId);
@@ -186,9 +170,6 @@ export class EventService {
     }
   }
 
-  /**
-   * Hủy đăng ký event
-   */
   static async unregisterEvent(eventId: string): Promise<void> {
     try {
       console.log('🔄 Unregistering from event:', eventId);
@@ -204,31 +185,25 @@ export class EventService {
     }
   }
 
-  /**
-   * Tạo event mới và tự động mở event
-   */
   static async createEvent(data: {
     communityId?: string;
     title: string;
     description?: string;
     mode: 'Online' | 'Offline';
     location?: string;
-    startsAt: string; // ISO DateTime
-    endsAt?: string; // ISO DateTime
-    priceCents: number; // >= 0 (0 = miễn phí, sẽ gửi null)
+    startsAt: string;
+    endsAt?: string;
+    priceCents: number;
     capacity?: number;
   }): Promise<string> {
     try {
       console.log('🔄 Creating event...', data);
       
-      // Convert mode to number: Online = 0, Offline = 1
       const modeValue = data.mode === 'Online' ? 0 : 1;
-      
-      // Nếu priceCents = 0 thì gửi null
       const priceValue = data.priceCents === 0 ? null : data.priceCents;
       
       const requestBody: any = {
-        communityId: null, // Events không cần community nữa
+        communityId: null,
         title: data.title,
         description: data.description || null,
         mode: modeValue,
@@ -246,20 +221,17 @@ export class EventService {
       
       console.log('✅ Event created:', response.data);
       
-      // Backend trả về { eventId: "..." } hoặc location header
       const eventId = response.data?.eventId || response.headers?.location?.split('/').pop();
       if (!eventId) {
         throw new Error('Không nhận được eventId từ server');
       }
       
-      // Tự động mở event sau khi tạo - đợi hoàn thành
       console.log('🔄 Auto-opening event:', eventId);
       try {
         await this.openEvent(eventId);
         console.log('✅ Event created and opened successfully');
       } catch (openError: any) {
         console.error('❌ Failed to auto-open event:', openError);
-        // Nếu open thất bại, vẫn trả về eventId nhưng throw error để user biết
         throw new Error(`Event đã được tạo nhưng không thể mở tự động: ${openError.message || 'Lỗi không xác định'}`);
       }
       
@@ -279,9 +251,6 @@ export class EventService {
     }
   }
 
-  /**
-   * Cập nhật event
-   */
   static async updateEvent(eventId: string, data: {
     communityId?: string;
     title?: string;
@@ -297,17 +266,14 @@ export class EventService {
       console.log('🔄 Updating event:', eventId, data);
       
       const requestBody: any = {};
-      // Events không cần community nữa, luôn set null
       requestBody.communityId = null;
       if (data.title !== undefined) requestBody.title = data.title;
       if (data.description !== undefined) requestBody.description = data.description || null;
       if (data.mode !== undefined) {
-        // Convert mode to number: Online = 0, Offline = 1
         requestBody.mode = data.mode === 'Online' ? 0 : 1;
       }
       if (data.location !== undefined) requestBody.location = data.location || null;
       if (data.priceCents !== undefined) {
-        // Nếu priceCents = 0 thì gửi null
         requestBody.priceCents = data.priceCents === 0 ? null : data.priceCents;
       }
       if (data.startsAt !== undefined) requestBody.startsAt = data.startsAt;
@@ -337,9 +303,6 @@ export class EventService {
     }
   }
 
-  /**
-   * Mở event (chuyển từ Draft → Open)
-   */
   static async openEvent(eventId: string): Promise<void> {
     try {
       console.log('🔄 Opening event:', eventId);
@@ -365,9 +328,6 @@ export class EventService {
     }
   }
 
-  /**
-   * Hủy event
-   */
   static async cancelEvent(eventId: string): Promise<void> {
     try {
       console.log('🔄 Canceling event:', eventId);
@@ -393,9 +353,6 @@ export class EventService {
     }
   }
 
-  /**
-   * Lấy events của user (organizer)
-   */
   static async getMyEvents(filters?: EventFilters): Promise<EventListResponse> {
     try {
       console.log('🔄 Fetching my events...');
@@ -430,9 +387,6 @@ export class EventService {
     }
   }
 
-  /**
-   * Lấy events hôm nay (cho Dashboard)
-   */
   static async getTodayEvents(): Promise<Event[]> {
     try {
       console.log('🔄 Fetching today events...');
@@ -453,9 +407,6 @@ export class EventService {
     }
   }
 
-  /**
-   * Lấy events sắp tới (7 ngày tới)
-   */
   static async getUpcomingEvents(): Promise<Event[]> {
     try {
       console.log('🔄 Fetching upcoming events...');
@@ -478,11 +429,7 @@ export class EventService {
     }
   }
 
-  /**
-   * Transform API response to our Event interface
-   */
   private static transformEvent(event: any): Event {
-    // Map backend status to frontend status
     const backendStatus = event.Status || event.status || 'Open';
     let frontendStatus: 'Open' | 'Closed' | 'Completed' | 'Cancelled' | 'Draft' = 'Open';
     
@@ -495,7 +442,6 @@ export class EventService {
       else if (statusLower === 'canceled' || statusLower === 'cancelled') frontendStatus = 'Cancelled';
     }
 
-    // Calculate current participants from MyRegistrationId
     const hasRegistration = !!(event.MyRegistrationId || event.myRegistrationId);
     
     return {
