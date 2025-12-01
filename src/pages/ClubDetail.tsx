@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Hash,
   Lock,
@@ -34,6 +34,7 @@ export default function ClubDetail() {
   const { clubId } = useParams<{ clubId: string }>();
   const { user } = useAuth();
   const { isConnected } = useChat();
+  const navigate = useNavigate();
 
   // State
   const [club, setClub] = useState<Club | null>(null);
@@ -149,7 +150,8 @@ export default function ClubDetail() {
   }, [clubId, loadClubAndRooms]);
 
   const handleRoomClick = (room: Room) => {
-    setSelectedRoom(room);
+    navigate(`/rooms/${room.id}`);
+    // setSelectedRoom(room);
   };
 
   const handleJoinRoom = useCallback(

@@ -10,6 +10,7 @@ export interface ClubDTO {
   OwnerId?: string;
   IsMember?: boolean;
   IsOwner?: boolean;
+  IsJoined?: boolean;
   CreatedAtUtc?: string;
   UpdatedAtUtc?: string;
 }
@@ -26,7 +27,7 @@ export interface Club {
   avatar?: string;
   color?: string;
   verified?: boolean;
-  role?: 'Admin' | 'Moderator' | 'Member';
+  role?: "Admin" | "Moderator" | "Member";
   lastActivity?: string;
   unreadMessages?: number;
   trending?: boolean;
@@ -37,22 +38,22 @@ export interface Club {
 }
 
 // Club Member types
-export interface ClubMemberDTO {
-  userId: number;
+export interface ClubMember {
+  userId: string;
   userName: string;
-  userAvatarUrl: string;
-  clubId: number;
-  clubName: string;
+  fullName?: string;
+  avatarUrl?: string | null;
+  level?: number | null;
+  role: "Owner" | "Moderator" | "Member";
   joinedAt: string;
-}
-
-export interface JoinClubDTO {
-  userId: number;
+  isOwner: boolean;
+  isCurrentUser: boolean;
 }
 
 // API Response types
 export interface ClubListResponse {
   Items: ClubDTO[];
+  JoinedClubIds?: string[];
   NextCursor: string | null;
   PrevCursor: string | null;
   Size: number;
