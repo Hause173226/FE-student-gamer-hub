@@ -5,6 +5,7 @@ import QuestService, {
   QuestTodayResponse,
 } from "../services/questService";
 import { ContentSkeleton } from "../components/ContentSkeleton";
+import { AnimatedHeader } from "../components/AnimatedHeader";
 
 // Cache key
 const QUESTS_CACHE_KEY = "quests_cache";
@@ -166,9 +167,9 @@ const Quests: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-900 to-blue-900 p-6">
-        <div className="max-w-7xl mx-auto">
+      {/* Animated Header */}
+      <AnimatedHeader theme="quests">
+        <div className="max-w-7xl mx-auto p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -230,7 +231,7 @@ const Quests: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+      </AnimatedHeader>
 
       {/* Quests Grid */}
       <div className="max-w-7xl mx-auto p-6">

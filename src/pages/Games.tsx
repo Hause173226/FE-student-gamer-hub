@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Search, Filter, Plus, Star, Clock, Trophy, Users, Gamepad2, ChevronRight, Loader2 } from "lucide-react";
 import GameService, { Game, GameSearchParams } from "../services/gameService";
 import { ContentSkeleton } from "../components/ContentSkeleton";
+import { AnimatedHeader } from "../components/AnimatedHeader";
 
 // Cache key
 const GAMES_CACHE_KEY = "games_cache";
@@ -215,9 +216,9 @@ const Games: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-900 to-blue-900 p-6">
-        <div className="max-w-7xl mx-auto">
+      {/* Animated Header */}
+      <AnimatedHeader theme="games">
+        <div className="max-w-7xl mx-auto p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -299,7 +300,7 @@ const Games: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+      </AnimatedHeader>
 
       {/* Games Grid */}
       <div className="max-w-7xl mx-auto p-6">

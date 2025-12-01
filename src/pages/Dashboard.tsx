@@ -20,6 +20,7 @@ import GameService from "../services/gameService";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "react-hot-toast";
 import { ContentSkeleton } from "../components/ContentSkeleton";
+import { AnimatedHeader } from "../components/AnimatedHeader";
 
 // Cache keys
 const DASHBOARD_CACHE_KEY = "dashboard_cache";
@@ -369,9 +370,9 @@ const Dashboard: React.FC = () => {
   );
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-900">
-        <div className="bg-gray-800 shadow-sm border-b border-gray-700">
+  return (
+    <div className="min-h-screen bg-gray-900">
+      <div className="bg-gray-800 shadow-sm border-b border-gray-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="h-12 bg-gray-700 rounded w-1/3 skeleton-item"></div>
             <div className="h-4 bg-gray-700 rounded w-1/4 mt-2 skeleton-item" style={{ animationDelay: '100ms' }}></div>
@@ -417,8 +418,8 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      {/* Header */}
-      <div className="bg-gray-800 shadow-sm border-b border-gray-700">
+      {/* Animated Header */}
+      <AnimatedHeader>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
@@ -442,7 +443,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+      </AnimatedHeader>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}

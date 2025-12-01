@@ -28,6 +28,9 @@ const Login: React.FC = () => {
   const [displayedText, setDisplayedText] = useState<string>("");
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [showCursor, setShowCursor] = useState<boolean>(true);
+  const [showGif, setShowGif] = useState<boolean>(false);
+  const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
+  const [boxVisible, setBoxVisible] = useState<boolean>(true);
   
   // Dashboard data
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
@@ -50,8 +53,14 @@ const Login: React.FC = () => {
         setCurrentIndex(prev => prev + 1);
       }, 80);
       return () => clearTimeout(timeout);
+    } else if (boxFlewIn && currentIndex === welcomeText.length && !showGif) {
+      // Text đã chạy xong, đợi 500ms rồi hiển thị gif
+      const gifTimeout = setTimeout(() => {
+        setShowGif(true);
+      }, 500);
+      return () => clearTimeout(gifTimeout);
     }
-  }, [currentIndex, welcomeText, boxFlewIn]);
+  }, [currentIndex, welcomeText, boxFlewIn, showGif]);
 
   // Cursor blink
   useEffect(() => {
@@ -65,18 +74,32 @@ const Login: React.FC = () => {
 
   // Hide welcome text and expand to login form
   useEffect(() => {
-    if (currentIndex === welcomeText.length) {
-      // Wait 2 seconds, then hide text
+    if (showGif) {
+      // Sau khi gif xuất hiện, đợi thêm 2.5 giây rồi bắt đầu animation chuyển đổi
       const hideTextTimeout = setTimeout(() => {
-        setShowWelcomeText(false);
-        // After text fades, expand to login form
+        // Bước 1: Bắt đầu transition - box bắt đầu co lại
+        setIsTransitioning(true);
+        
+        // Bước 2: Fade out gif và text cùng lúc (chậm, mượt)
         setTimeout(() => {
-          setShowLoginForm(true);
-        }, 500);
-      }, 2000); // Show welcome text for 2 seconds
+          setShowWelcomeText(false);
+        }, 250); // Delay để box bắt đầu co
+        
+        // Bước 3: Sau khi fade out xong, box biến mất
+        setTimeout(() => {
+          setBoxVisible(false);
+          setIsTransitioning(false);
+          
+          // Bước 4: Sau khi box biến mất, xuất hiện lại với login form
+          setTimeout(() => {
+            setBoxVisible(true);
+            setShowLoginForm(true);
+          }, 100); // Delay ngắn để box biến mất hoàn toàn (giảm từ 200ms)
+        }, 900); // Thời gian fade out + box co lại (800ms fade + 100ms buffer)
+      }, 2500); // Hiển thị gif trong 2.5 giây sau khi xuất hiện
       return () => clearTimeout(hideTextTimeout);
     }
-  }, [currentIndex, welcomeText.length]);
+  }, [showGif]);
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -278,30 +301,47 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Single Box - flies in, shows text, expands to login form, then to dashboard */}
-      <div 
-        className={`transition-all duration-700 ${
-          boxFlewIn ? 'translate-x-0 opacity-100' : '-translate-x-[100vw] opacity-0'
-        } ${
-          showDashboard 
-            ? 'w-full max-w-7xl scale-100' 
-            : showLoginForm 
-              ? 'max-w-md w-full scale-100' 
-              : 'max-w-lg w-full scale-90'
-        }`}
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Video Background */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover z-0"
       >
+        <source src="/Rounded Purple lines Abstract Gradient Background Animation.mp4" type="video/mp4" />
+      </video>
+      
+      {/* Overlay để đảm bảo nội dung dễ đọc */}
+      <div className="absolute inset-0 bg-black/40 z-10"></div>
+      
+      {/* Single Box - flies in, shows text, expands to login form, then to dashboard */}
+      <div className="relative z-20">
+        <div 
+          className={`transition-all ${
+            boxFlewIn && boxVisible ? 'translate-x-0 opacity-100' : boxFlewIn ? 'opacity-0' : '-translate-x-[100vw] opacity-0'
+          } ${
+            showDashboard 
+              ? 'w-full max-w-7xl scale-100 duration-700' 
+              : showLoginForm 
+                ? 'max-w-md w-full scale-100 duration-700 ease-out' 
+              : isTransitioning
+                ? 'max-w-md w-full scale-100 duration-800 ease-in-out'
+                : 'max-w-lg w-full scale-90 duration-700'
+          }`}
+        >
         <div className={`bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 transition-all duration-700 overflow-hidden ${
           showDashboard ? 'min-h-[90vh]' : ''
         }`}>
           {/* Welcome Text Section */}
           <div 
-            className={`transition-all duration-500 ${
-              showWelcomeText ? 'opacity-100 max-h-96 py-12 px-8' : 'opacity-0 max-h-0 py-0 px-8'
+            className={`transition-all duration-800 ease-in-out ${
+              showWelcomeText ? 'opacity-100 max-h-[600px] py-12 px-8' : 'opacity-0 max-h-0 py-0 px-8 overflow-hidden'
             }`}
           >
             <div className="text-center">
-              <p className="text-2xl md:text-3xl text-white font-semibold min-h-[60px] flex items-center justify-center">
+              <p className="text-2xl md:text-3xl text-white font-semibold min-h-[60px] flex items-center justify-center mb-6">
                 {displayedText}
                 {currentIndex < welcomeText.length && showWelcomeText && (
                   <span className={`inline-block w-0.5 h-8 bg-indigo-400 ml-1 ${showCursor ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}>
@@ -309,13 +349,25 @@ const Login: React.FC = () => {
                   </span>
                 )}
               </p>
+              {/* Wumpus GIF - chỉ hiển thị sau khi text chạy xong */}
+              {showGif && showWelcomeText && (
+                <div className={`flex justify-center transition-opacity duration-800 ease-in-out ${
+                  showWelcomeText ? 'opacity-100 animate-fade-in' : 'opacity-0'
+                }`}>
+                  <img 
+                    src="/wumpus.gif" 
+                    alt="Wumpus" 
+                    className="max-w-[200px] md:max-w-[300px] h-auto"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
           {/* Login Form Section */}
           <div 
-            className={`transition-all duration-700 ${
-              showLoginForm ? 'opacity-100 max-h-[2000px] py-8 px-8' : 'opacity-0 max-h-0 py-0 px-8'
+            className={`transition-all duration-700 ease-out ${
+              showLoginForm ? 'opacity-100 max-h-[2000px] py-8 px-8 scale-100' : 'opacity-0 max-h-0 py-0 px-8 scale-95'
             }`}
           >
             <div className="flex flex-col items-center mb-8">
@@ -649,6 +701,7 @@ const Login: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

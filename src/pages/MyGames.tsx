@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import GameService, { Game, UserGameInfo } from "../services/gameService";
 import { ContentSkeleton } from "../components/ContentSkeleton";
+import { AnimatedHeader } from "../components/AnimatedHeader";
 
 // Cache key
 const MY_GAMES_CACHE_KEY = "my_games_cache";
@@ -203,9 +204,9 @@ const MyGames: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-green-900 to-blue-900 p-6">
-        <div className="max-w-7xl mx-auto">
+      {/* Animated Header */}
+      <AnimatedHeader theme="games">
+        <div className="max-w-7xl mx-auto p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -311,7 +312,7 @@ const MyGames: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+      </AnimatedHeader>
 
       {/* Games Grid */}
       <div className="max-w-7xl mx-auto p-6">
@@ -456,13 +457,15 @@ interface MyGameCardProps {
 
 const MyGameCard: React.FC<MyGameCardProps> = ({ game, onEdit, onRemove }) => {
   // Show card even if userGameInfo is missing, with fallback values
-  const userGameInfo = game.userGameInfo || {
+  const userGameInfo: UserGameInfo = game.userGameInfo || {
     id: game.id || '',
+    gameId: game.id || '',
     inGameName: 'Chưa cập nhật',
     skillLevel: 1,
     playTime: 0,
     isFavorite: false,
     lastPlayed: new Date().toISOString(),
+    achievements: [],
   };
 
   return (

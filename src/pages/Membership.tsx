@@ -13,6 +13,7 @@ import MembershipService from "../services/membershipService";
 import PaymentService from "../services/paymentService";
 import { MembershipPlanDto, CurrentMembershipDto } from "../types/membership";
 import { ContentSkeleton } from "../components/ContentSkeleton";
+import { AnimatedHeader } from "../components/AnimatedHeader";
 
 // Cache keys
 const MEMBERSHIP_PLANS_CACHE_KEY = "membership_plans_cache";
@@ -245,9 +246,9 @@ const Membership = () => {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 py-16 px-4">
-        <div className="max-w-7xl mx-auto text-center">
+      {/* Animated Header */}
+      <AnimatedHeader theme="membership">
+        <div className="max-w-7xl mx-auto py-16 px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
             Nâng cấp trải nghiệm của bạn
           </h1>
@@ -255,7 +256,7 @@ const Membership = () => {
             Chọn gói membership phù hợp để tham gia nhiều sự kiện hơn
           </p>
         </div>
-      </div>
+      </AnimatedHeader>
 
       <div className="max-w-7xl mx-auto px-4 py-12">
         {/* Current Membership Status */}
