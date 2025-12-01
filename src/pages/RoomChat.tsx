@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Hash, ArrowLeft, Users, Loader2, Send, UserPlus } from "lucide-react";
 import { RoomService } from "../services/roomService";
-import { Room } from "../types/room";
+import { Room, RoomJoinPolicy } from "../types/room";
 import { useAuth } from "../contexts/AuthContext";
 import {
   signalRChatService,
@@ -10,6 +10,7 @@ import {
 } from "../services/signalRChatService";
 import { ChatMessageDto } from "../types/chat";
 import toast from "react-hot-toast";
+import userService, { UserInfoResponse } from "../services/userService";
 
 export default function RoomChat() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -29,34 +30,110 @@ export default function RoomChat() {
   const [roomJoined, setRoomJoined] = useState(false);
   const [isJoiningMembership, setIsJoiningMembership] = useState(false);
 
+  // Track actual membership status from members API
+  const [isActualMember, setIsActualMember] = useState<boolean | null>(null);
+  const [checkingMembership, setCheckingMembership] = useState(true);
+
+  // Cache user info by userId
+  const [userCache, setUserCache] = useState<Record<string, UserInfoResponse>>(
+    {}
+  );
+
   const isConnected = connectionStatus === "connected";
   const roomChannel = useMemo(
     () => (roomId ? `room:${roomId}` : undefined),
     [roomId]
   );
 
-  // Load room info
+  // ✅ Fetch user info for any userId not in cache
   useEffect(() => {
-    if (!roomId) return;
+    const uniqueUserIds = Array.from(
+      new Set(messages.map((msg) => msg.fromUserId).filter(Boolean))
+    );
 
-    const loadRoom = async () => {
+    // Find userIds that are not in cache yet
+    const missingUserIds = uniqueUserIds.filter((id) => !userCache[id]);
+
+    if (missingUserIds.length === 0) return;
+
+    // Fetch missing user info
+    const fetchUserInfo = async () => {
+      for (const userId of missingUserIds) {
+        try {
+          const userInfo = await userService.getUserById(userId);
+          setUserCache((prev) => ({ ...prev, [userId]: userInfo }));
+        } catch (error) {
+          // Silent fail, will show fallback name
+        }
+      }
+    };
+
+    fetchUserInfo();
+  }, [messages, userCache]);
+
+  // Load room info and check membership
+  useEffect(() => {
+    if (!roomId) {
+      return;
+    }
+
+    if (!user) {
+      setLoading(false);
+      setCheckingMembership(false);
+      return;
+    }
+
+    // Extract user ID from user object (backend uses 'Id' with capital I)
+    const userId = (user as any).Id || user.id || (user as any).userId;
+
+    if (!userId) {
+      setLoading(false);
+      setCheckingMembership(false);
+      return;
+    }
+
+    const loadRoomAndCheckMembership = async () => {
       try {
         setLoading(true);
+        setCheckingMembership(true);
+
+        // Load room data
         const roomData = await RoomService.getRoomById(roomId);
         setRoom(roomData);
-        console.log("✅ Loaded room:", roomData);
-        console.log("🔍 IsMember:", roomData.isMember);
-      } catch (error) {
-        console.error("❌ Failed to load room:", error);
+
+        // Check membership via members API
+        try {
+          const membersResponse = await RoomService.getRoomMembers(roomId);
+
+          const members =
+            membersResponse.Items ||
+            membersResponse.items ||
+            membersResponse ||
+            [];
+
+          // Check if current user is in members list
+          const isMember = members.some((member: any) => {
+            const memberId = member.User?.Id || member.userId || member.id;
+            const isCurrentUser = member.IsCurrentUser === true;
+            return memberId === userId || isCurrentUser;
+          });
+
+          setIsActualMember(isMember);
+        } catch (membersErr: any) {
+          // Fallback to room.isMember if members API fails
+          setIsActualMember(roomData.isMember || false);
+        }
+      } catch (error: any) {
         toast.error("Không thể tải thông tin room");
         navigate(-1);
       } finally {
         setLoading(false);
+        setCheckingMembership(false);
       }
     };
 
-    loadRoom();
-  }, [roomId, navigate]);
+    loadRoomAndCheckMembership();
+  }, [roomId, user, navigate]);
 
   // Connect to SignalR
   useEffect(() => {
@@ -65,9 +142,7 @@ export default function RoomChat() {
     const connectChat = async () => {
       try {
         if (!signalRChatService.isConnected()) {
-          console.log("🔄 Connecting to SignalR...");
           await signalRChatService.connect();
-          console.log("✅ Connected to SignalR");
         }
       } catch (error) {
         console.error("❌ Failed to connect chat:", error);
@@ -85,68 +160,61 @@ export default function RoomChat() {
       !roomChannel ||
       !isConnected ||
       !room ||
-      !room.isMember ||
+      !isActualMember ||
       isJoiningRoom ||
       roomJoined
     ) {
       return;
     }
 
-    let mounted = true;
-
     const setupRoom = async () => {
       setIsJoiningRoom(true);
       try {
-        console.log(`🔄 Joining room chat: ${roomId}`);
+        // Use joinChannels instead of joinRoom (backend doesn't have JoinRoom method)
+        await signalRChatService.joinChannels([roomChannel]);
 
-        await signalRChatService.joinRoom(roomId);
-        console.log(`✅ Joined room channel: ${roomChannel}`);
-
-        if (!mounted) return;
         setRoomJoined(true);
 
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        console.log("🔄 Loading room history...");
         await signalRChatService.loadHistory(roomChannel, undefined, 50);
-        console.log("✅ Requested room history");
       } catch (error) {
         console.error("❌ Failed to setup room:", error);
-        if (mounted) {
-          toast.error("Không thể tham gia room chat");
-          setRoomJoined(false);
-        }
+        toast.error("Không thể tham gia room chat");
+        setRoomJoined(false);
       } finally {
-        if (mounted) {
-          setIsJoiningRoom(false);
-        }
+        setIsJoiningRoom(false);
       }
     };
 
     setupRoom();
 
     return () => {
-      mounted = false;
-      if (roomId && roomJoined) {
-        console.log(`🔄 Leaving room: ${roomId}`);
-        signalRChatService.leaveRoom(roomId).catch(console.error);
+      if (roomChannel && roomJoined) {
+        // Backend might not have LeaveRoom, just clear local state
         setRoomJoined(false);
       }
     };
-  }, [roomId, roomChannel, isConnected, room, isJoiningRoom, roomJoined]);
+  }, [
+    roomId,
+    roomChannel,
+    isConnected,
+    room,
+    isActualMember,
+    isJoiningRoom,
+    roomJoined,
+  ]);
 
   // Subscribe to SignalR events
   useEffect(() => {
     const unsubscribeConn = signalRChatService.onConnectionChange((status) => {
       setConnectionStatus(status);
-      console.log("🔌 Connection status:", status);
       if (status === "disconnected") {
         setRoomJoined(false);
       }
     });
 
     const unsubscribeMsg = signalRChatService.onMessage((message) => {
-      console.log("📨 Received message:", message);
       if (message.roomId === roomId) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === message.id)) {
@@ -164,7 +232,6 @@ export default function RoomChat() {
     const unsubscribeHistory = signalRChatService.onHistory((response) => {
       if (response.channel?.toLowerCase() === roomChannel?.toLowerCase()) {
         setMessages(response.items || []);
-        console.log(`✅ Loaded ${response.items?.length || 0} messages`);
 
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
@@ -187,19 +254,50 @@ export default function RoomChat() {
 
   // Handle join room membership
   const handleJoinRoom = async () => {
-    if (!roomId) return;
+    if (!roomId || !user) return;
+
+    // ✅ Extract user ID (backend uses 'Id' with capital I)
+    const userId = (user as any).Id || user.id || (user as any).userId;
+    if (!userId) {
+      toast.error("Không tìm thấy thông tin user");
+      return;
+    }
 
     setIsJoiningMembership(true);
     try {
-      console.log(`🔄 Joining room membership: ${roomId}`);
       await RoomService.joinRoom(roomId);
 
-      // Reload room data to get updated isMember status
-      const updatedRoom = await RoomService.getRoomById(roomId);
-      setRoom(updatedRoom);
-
       toast.success("Đã tham gia room!");
-      console.log("✅ Joined room membership");
+
+      // ✅ Re-check membership via members API
+      try {
+        const membersResponse = await RoomService.getRoomMembers(roomId);
+        const members =
+          membersResponse.Items ||
+          membersResponse.items ||
+          membersResponse ||
+          [];
+
+        const isMember = members.some((member: any) => {
+          const memberId = member.User?.Id || member.userId || member.id;
+          const isCurrentUser = member.IsCurrentUser === true;
+          return memberId === userId || isCurrentUser;
+        });
+
+        setIsActualMember(isMember);
+
+        // Update room member count
+        if (room) {
+          setRoom({
+            ...room,
+            membersCount: room.membersCount + 1,
+          });
+        }
+      } catch (err) {
+        console.warn("⚠️ Could not re-check membership:", err);
+        // Assume success
+        setIsActualMember(true);
+      }
     } catch (error: any) {
       console.error("❌ Failed to join room:", error);
       toast.error(error.message || "Không thể tham gia room");
@@ -220,16 +318,13 @@ export default function RoomChat() {
 
     setSending(true);
     try {
-      console.log(`📤 Sending message to room ${roomId}:`, inputText.trim());
       await signalRChatService.sendToRoom(roomId, inputText.trim());
       setInputText("");
-      console.log("✅ Message sent successfully");
     } catch (error: any) {
       console.error("❌ Send message failed:", error);
       toast.error(error.message || "Không thể gửi tin nhắn");
 
       if (error.message?.includes("not a room member")) {
-        console.log("🔄 Attempting to rejoin room...");
         setRoomJoined(false);
       }
     } finally {
@@ -237,12 +332,14 @@ export default function RoomChat() {
     }
   };
 
-  if (loading) {
+  if (loading || checkingMembership) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Đang tải room...</p>
+          <p className="text-gray-400">
+            {loading ? "Đang tải room..." : "Đang kiểm tra quyền truy cập..."}
+          </p>
         </div>
       </div>
     );
@@ -264,8 +361,8 @@ export default function RoomChat() {
     );
   }
 
-  // Show join room screen if not a member
-  if (!room.isMember) {
+  // ✅ Show join room screen if not an actual member
+  if (isActualMember === false) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-gray-800 rounded-xl p-8 border border-gray-700 text-center">
@@ -286,7 +383,11 @@ export default function RoomChat() {
             </div>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full" />
-              <span>{room.joinPolicy === 1 ? "Công khai" : "Riêng tư"}</span>
+              <span>
+                {room.joinPolicy === RoomJoinPolicy.Open
+                  ? "Công khai"
+                  : "Riêng tư"}
+              </span>
             </div>
           </div>
 
@@ -402,11 +503,20 @@ export default function RoomChat() {
           </div>
         ) : (
           messages.map((msg) => {
-            const isOwnMessage = msg.fromUserId === user?.id;
+            const isOwnMessage =
+              msg.fromUserId === ((user as any)?.Id || user?.id);
             const timestamp = new Date(msg.sentAt).toLocaleTimeString("vi-VN", {
               hour: "2-digit",
               minute: "2-digit",
             });
+
+            // ✅ Get sender name from userCache or fallback
+            const userInfo = userCache[msg.fromUserId];
+            const senderName = isOwnMessage
+              ? "Bạn"
+              : userInfo?.fullName ||
+                userInfo?.userName ||
+                `User ${msg.fromUserId.slice(-4)}`;
 
             return (
               <div
@@ -416,32 +526,34 @@ export default function RoomChat() {
                 }`}
               >
                 <div
-                  className={`max-w-[70%] ${
+                  className={`max-w-[70%] flex flex-col ${
                     isOwnMessage ? "items-end" : "items-start"
                   }`}
                 >
                   {!isOwnMessage && (
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                        {msg.fromUserId.substring(0, 2).toUpperCase()}
+                    <div className="flex items-center gap-2 mb-1 px-1">
+                      <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md">
+                        {senderName.substring(0, 2).toUpperCase()}
                       </div>
-                      <span className="text-xs text-gray-400">
-                        User {msg.fromUserId.slice(-4)}
+                      <span className="text-sm font-semibold text-gray-300">
+                        {senderName}
                       </span>
                       <span className="text-xs text-gray-500">{timestamp}</span>
                     </div>
                   )}
                   <div
-                    className={`px-4 py-2 rounded-lg ${
+                    className={`px-4 py-2.5 rounded-2xl shadow-sm ${
                       isOwnMessage
-                        ? "bg-indigo-600 text-white"
-                        : "bg-gray-800 text-gray-200"
+                        ? "bg-indigo-600 text-white rounded-br-md"
+                        : "bg-gray-800 text-gray-100 rounded-bl-md border border-gray-700"
                     }`}
                   >
-                    <p className="text-sm break-words">{msg.text}</p>
+                    <p className="text-sm leading-relaxed break-words">
+                      {msg.text}
+                    </p>
                   </div>
                   {isOwnMessage && (
-                    <div className="text-xs text-gray-500 mt-1 text-right">
+                    <div className="text-xs text-gray-500 mt-1 px-1">
                       {timestamp}
                     </div>
                   )}

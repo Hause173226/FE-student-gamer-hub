@@ -207,7 +207,19 @@ export class SignalRChatService {
     }
 
     try {
-      await this.connection.invoke("JoinChannels", channels);
+      console.log("📡 Invoking JoinChannels with:", channels);
+
+      // Add timeout to prevent hanging forever
+      const invokePromise = this.connection.invoke("JoinChannels", channels);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("JoinChannels timeout after 5s")),
+          5000
+        )
+      );
+
+      await Promise.race([invokePromise, timeoutPromise]);
+      console.log("✅ JoinChannels succeeded for:", channels);
       channels.forEach((channel) => this.joinedChannels.add(channel));
     } catch (error: any) {
       console.error("❌ Failed to join channels:", error);
