@@ -216,6 +216,72 @@ export class SignalRChatService {
   }
 
   /**
+   * Join a room via dedicated hub method
+   */
+  async joinRoom(roomId: string): Promise<void> {
+    if (!this.connection) {
+      throw new ChatError("Connection not initialized", "NOT_CONNECTED");
+    }
+
+    if (!roomId || roomId.trim().length === 0) {
+      throw new ChatError("Room ID is required", "INVALID_ROOM");
+    }
+
+    try {
+      await this.connection.invoke("JoinRoom", roomId);
+      const channel = SignalRChatService.getRoomChannel(roomId);
+      this.joinedChannels.add(channel);
+    } catch (error: any) {
+      console.error("❌ Failed to join room:", error);
+      throw this.parseError(error);
+    }
+  }
+
+  /**
+   * Leave a room via dedicated hub method
+   */
+  async leaveRoom(roomId: string): Promise<void> {
+    if (!this.connection) {
+      throw new ChatError("Connection not initialized", "NOT_CONNECTED");
+    }
+
+    if (!roomId || roomId.trim().length === 0) {
+      throw new ChatError("Room ID is required", "INVALID_ROOM");
+    }
+
+    const channel = SignalRChatService.getRoomChannel(roomId);
+
+    try {
+      await this.connection.invoke("LeaveRoom", roomId);
+      this.joinedChannels.delete(channel);
+    } catch (error: any) {
+      console.error("❌ Failed to leave room:", error);
+      throw this.parseError(error);
+    }
+  }
+
+  /**
+   * Leave any joined channel
+   */
+  async leaveChannel(channel: string): Promise<void> {
+    if (!this.connection) {
+      throw new ChatError("Connection not initialized", "NOT_CONNECTED");
+    }
+
+    if (!channel || channel.trim().length === 0) {
+      throw new ChatError("Channel is required", "INVALID_CHANNEL");
+    }
+
+    try {
+      await this.connection.invoke("LeaveChannel", channel);
+      this.joinedChannels.delete(channel);
+    } catch (error: any) {
+      console.error("❌ Failed to leave channel:", error);
+      throw this.parseError(error);
+    }
+  }
+
+  /**
    * Join a single channel
    */
   async joinChannel(channel: string): Promise<void> {

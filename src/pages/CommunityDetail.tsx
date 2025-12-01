@@ -25,6 +25,18 @@ import ClubService from "../services/clubService";
 import { useAuth } from "../contexts/AuthContext";
 import toast from "react-hot-toast";
 
+type ExtendedCommunityMember = CommunityMemberDto & {
+  User?: {
+    Id?: string;
+    FullName?: string;
+    UserName?: string;
+    AvatarUrl?: string | null;
+    Role?: string | number | null;
+  };
+  AvatarUrl?: string | null;
+  IsOwner?: boolean;
+};
+
 // Cache keys
 const COMMUNITY_DETAIL_CACHE_KEY = "community_detail_cache";
 const CLUBS_CACHE_KEY = "clubs_cache";
@@ -49,8 +61,10 @@ export function CommunityDetail() {
   const [lastCreateTime, setLastCreateTime] = useState(0);
 
   // Members state
-  const [members, setMembers] = useState<CommunityMemberDto[]>([]);
-  const [recentMembers, setRecentMembers] = useState<CommunityMemberDto[]>([]);
+  const [members, setMembers] = useState<ExtendedCommunityMember[]>([]);
+  const [recentMembers, setRecentMembers] = useState<ExtendedCommunityMember[]>(
+    []
+  );
   const [showMembers, setShowMembers] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
@@ -115,6 +129,7 @@ export function CommunityDetail() {
 
       setCommunity(communityData);
       setClubs(clubsData);
+      console.log("🌐 API clubs data:", clubsData);
 
       console.log("✅ Loaded community:", communityData);
       console.log("✅ Loaded clubs:", clubsData);
@@ -153,22 +168,27 @@ export function CommunityDetail() {
     loadRecentMembers();
   }, [communityId, loadCommunityAndClubs, loadRecentMembers]);
 
-  const handleJoinClub = useCallback(async (clubId: string | number) => {
-    try {
-      await ClubService.joinClub(clubId.toString()); // Convert to string for API
-      setClubs((prev) =>
-        prev.map((club) =>
-          club.id === clubId
-            ? { ...club, isJoined: true, membersCount: club.membersCount + 1 }
-            : club
-        )
-      );
-      toast.success("Đã tham gia club!");
-    } catch (error) {
-      console.error("❌ Error joining club:", error);
-      toast.error("Không thể tham gia club");
-    }
-  }, []);
+  const handleJoinClub = useCallback(
+    async (clubId: string | number) => {
+      try {
+        await ClubService.joinClub(clubId.toString()); // Convert to string for API
+        setClubs((prev) =>
+          prev.map((club) =>
+            club.id === clubId
+              ? { ...club, isJoined: true, membersCount: club.membersCount + 1 }
+              : club
+          )
+        );
+        console.log("✅ Joined club locally:", clubId);
+        loadCommunityAndClubs().catch(console.error);
+        toast.success("Đã tham gia club!");
+      } catch (error) {
+        console.error("❌ Error joining club:", error);
+        toast.error("Không thể tham gia club");
+      }
+    },
+    [loadCommunityAndClubs]
+  );
 
   const handleJoinCommunity = useCallback(async () => {
     if (!communityId) return;
@@ -312,6 +332,46 @@ export function CommunityDetail() {
       setIsCreatingClub(false);
     }
   }, [createForm, communityId, lastCreateTime, loadCommunityAndClubs]);
+
+  const getMemberDisplayInfo = (member: ExtendedCommunityMember) => {
+    const userData = member.User || {};
+
+    const name =
+      member.FullName ||
+      userData.FullName ||
+      member.UserName ||
+      userData.UserName ||
+      "Người dùng";
+
+    const initials = (
+      member.FullName?.[0] ||
+      userData.FullName?.[0] ||
+      member.UserName?.[0] ||
+      userData.UserName?.[0] ||
+      "U"
+    ).toUpperCase();
+
+    const avatar = member.Avatar || userData.AvatarUrl || null;
+
+    const normalizedRole = (() => {
+      const rawRole = member.Role ?? userData.Role;
+      if (typeof rawRole === "string") return rawRole;
+      if (rawRole === 2 || member.IsOwner) return "Owner";
+      if (rawRole === 1) return "Moderator";
+      return "Member";
+    })();
+
+    return {
+      name,
+      initials,
+      avatar,
+      role: normalizedRole,
+    };
+  };
+
+  const handleClubClick = (clubId: string) => {
+    navigate(`/clubs/${clubId}`);
+  };
 
   const getClubColor = (club: Club) => {
     return club.color || "from-blue-500 to-cyan-600";
@@ -489,24 +549,43 @@ export function CommunityDetail() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              {recentMembers.map((member) => (
-                <div
-                  key={member.UserId}
-                  className="flex items-center space-x-2 bg-gray-700 rounded-lg px-3 py-2"
-                >
-                  <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                    {member.FullName?.[0] || member.UserName?.[0] || "U"}
-                  </div>
-                  <div>
-                    <div className="text-white text-sm font-medium">
-                      {member.FullName || member.UserName || "Unknown User"}
-                    </div>
-                    {member.Role === "Owner" && (
-                      <div className="text-xs text-yellow-400">Chủ sở hữu</div>
+              {recentMembers.map((member) => {
+                const { name, initials, avatar, role } =
+                  getMemberDisplayInfo(member);
+                return (
+                  <div
+                    key={member.UserId || member.User?.Id}
+                    className="flex items-center space-x-2 bg-gray-700 rounded-lg px-3 py-2"
+                  >
+                    {avatar ? (
+                      <img
+                        src={avatar}
+                        alt={name}
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                        {initials}
+                      </div>
                     )}
+                    <div>
+                      <div className="text-white text-sm font-medium">
+                        {name}
+                      </div>
+                      {role === "Owner" && (
+                        <div className="text-xs text-yellow-400">
+                          Chủ sở hữu
+                        </div>
+                      )}
+                      {role === "Moderator" && (
+                        <div className="text-xs text-blue-400">
+                          Điều hành viên
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -528,40 +607,54 @@ export function CommunityDetail() {
               </div>
             ) : (
               <div className="space-y-2">
-                {members.map((member) => (
-                  <div
-                    key={member.UserId}
-                    className="flex items-center justify-between bg-gray-700 rounded-lg px-4 py-3"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
-                        {member.FullName?.[0] || member.UserName?.[0] || "U"}
-                      </div>
-                      <div>
-                        <div className="text-white font-medium">
-                          {member.FullName || member.UserName || "Unknown User"}
-                        </div>
-                        <div className="text-sm text-gray-400">
-                          {member.Role === "Owner" && "👑 Chủ sở hữu"}
-                          {member.Role === "Moderator" && "🛡️ Điều hành viên"}
-                          {member.Role === "Member" && "Thành viên"}
-                        </div>
-                      </div>
-                    </div>
+                {members.map((member) => {
+                  const { name, initials, avatar, role } =
+                    getMemberDisplayInfo(member);
+                  const memberId = member.UserId || member.User?.Id;
 
-                    {community.role === "Admin" &&
-                      member.Role !== "Owner" &&
-                      member.UserId !== user?.id && (
-                        <button
-                          onClick={() => handleRemoveMember(member.UserId)}
-                          className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-                          title="Xóa thành viên"
-                        >
-                          <UserX className="w-5 h-5" />
-                        </button>
-                      )}
-                  </div>
-                ))}
+                  return (
+                    <div
+                      key={memberId}
+                      className="flex items-center justify-between bg-gray-700 rounded-lg px-4 py-3"
+                    >
+                      <div className="flex items-center space-x-3">
+                        {avatar ? (
+                          <img
+                            src={avatar}
+                            alt={name}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-medium">
+                            {initials}
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-white font-medium">{name}</div>
+                          <div className="text-sm text-gray-400">
+                            {role === "Owner" && "👑 Chủ sở hữu"}
+                            {role === "Moderator" && "🛡️ Điều hành viên"}
+                            {role === "Member" && "Thành viên"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {community.role === "Admin" &&
+                        role !== "Owner" &&
+                        memberId !== user?.id && (
+                          <button
+                            onClick={() =>
+                              memberId && handleRemoveMember(memberId)
+                            }
+                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                            title="Xóa thành viên"
+                          >
+                            <UserX className="w-5 h-5" />
+                          </button>
+                        )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -677,10 +770,10 @@ export function CommunityDetail() {
                     </button>
                     {club.isJoined && (
                       <button
-                        onClick={() => navigate(`/rooms`)}
+                        onClick={() => handleClubClick(club.id.toString())}
                         className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
                       >
-                        Vào Rooms
+                        Vào Room
                       </button>
                     )}
                   </div>
