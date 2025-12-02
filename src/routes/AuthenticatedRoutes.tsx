@@ -22,6 +22,8 @@ import ChatPage from "../pages/ChatPage";
 import DebugToken from "../pages/DebugToken";
 import Membership from "../pages/Membership";
 import MembershipSuccess from "../pages/MembershipSuccess";
+import ChatRoomLab from "../pages/ChatRoomLab";
+import RoomChat from "../pages/RoomChat";
 
 export const AuthenticatedApp: React.FC = () => {
   const location = useLocation();
@@ -44,10 +46,15 @@ export const AuthenticatedApp: React.FC = () => {
           <Route path="/my-games" element={<MyGames />} />
           <Route path="/quests" element={<Quests />} />
           <Route path="/communities" element={<Communities />} />
-          <Route path="/communities/:communityId" element={<CommunityDetail />} />
+          <Route
+            path="/communities/:communityId"
+            element={<CommunityDetail />}
+          />
           <Route path="/clubs/:clubId" element={<ClubDetail />} />
           <Route path="/friends" element={<Friends />} />
           <Route path="/rooms" element={<Rooms />} />
+          <Route path="/rooms/:roomId" element={<RoomChat />} />
+          <Route path="/chat-lab" element={<ChatRoomLab />} />
           <Route path="/chat/dm/:otherId" element={<ChatPage />} />
           <Route path="/chat-groups" element={<ChatGroups />} />
           <Route path="/chat/:groupId" element={<DiscordChat />} />

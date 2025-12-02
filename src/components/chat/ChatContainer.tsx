@@ -228,22 +228,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   };
 
-  const status = getConnectionStatus();
-  const StatusIcon = status.icon;
-
   return (
     <div className={`flex flex-col h-full bg-slate-900 ${className}`}>
-      {/* Connection status */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-700 bg-slate-800">
-        <div className="flex items-center space-x-2">
-          <StatusIcon className={`w-4 h-4 ${status.color}`} />
-          <span className={`text-sm ${status.color}`}>{status.text}</span>
-        </div>
-
-        {isTyping && (
+      {isTyping && (
+        <div className="flex items-center justify-end px-4 py-2 border-b border-slate-700 bg-slate-800">
           <div className="text-sm text-slate-400">Ai đó đang nhập...</div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Error message */}
       {error && (

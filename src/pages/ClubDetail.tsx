@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Hash,
   Lock,
@@ -21,7 +21,6 @@ import { Room, RoomJoinPolicy } from "../types/room";
 import { Club } from "../types/club";
 import { toast } from "react-hot-toast";
 import ChatContainer from "../components/chat/ChatContainer";
-import ChatDebug from "../components/chat/ChatDebug";
 import { useChat } from "../hooks/useChat";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -34,6 +33,7 @@ export default function ClubDetail() {
   const { clubId } = useParams<{ clubId: string }>();
   const { user } = useAuth();
   const { isConnected } = useChat();
+  const navigate = useNavigate();
 
   // State
   const [club, setClub] = useState<Club | null>(null);
@@ -149,7 +149,8 @@ export default function ClubDetail() {
   }, [clubId, loadClubAndRooms]);
 
   const handleRoomClick = (room: Room) => {
-    setSelectedRoom(room);
+    navigate(`/rooms/${room.id}`);
+    // setSelectedRoom(room);
   };
 
   const handleJoinRoom = useCallback(
@@ -662,8 +663,6 @@ export default function ClubDetail() {
         </div>
       )}
 
-      {/* Debug Panel - Remove in production */}
-      <ChatDebug />
     </div>
   );
 }
