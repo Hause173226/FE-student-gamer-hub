@@ -21,7 +21,6 @@ import { Room, RoomJoinPolicy } from "../types/room";
 import { Club } from "../types/club";
 import { toast } from "react-hot-toast";
 import ChatContainer from "../components/chat/ChatContainer";
-import ChatDebug from "../components/chat/ChatDebug";
 import { useChat } from "../hooks/useChat";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -664,8 +663,6 @@ export default function ClubDetail() {
         </div>
       )}
 
-      {/* Debug Panel - Remove in production */}
-      <ChatDebug />
     </div>
   );
 }

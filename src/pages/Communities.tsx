@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { Community } from "../types/community";
 import CommunityService from "../services/communityService";
-import { DebugInfo } from "../components/DebugInfo";
 import toast from "react-hot-toast";
 import { ContentSkeleton } from "../components/ContentSkeleton";
 
@@ -625,8 +624,6 @@ export function Communities() {
         </div>
       )}
 
-      {/* Debug Info Component */}
-      <DebugInfo />
     </div>
   );
 }
